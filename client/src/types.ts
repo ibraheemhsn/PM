@@ -1,0 +1,130 @@
+/** الأنواع المشتركة — تطابق حقول DRF serializers (snake_case). */
+
+export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+
+export interface UserBrief {
+  id: number
+  username: string
+  first_name: string
+  /** مفتاح أيقونة جاهزة من AVATAR_OPTIONS */
+  avatar: string | null
+  /** صورة مرفوعة — لها الأولوية في العرض على الأيقونة */
+  photo: string | null
+}
+
+export interface User extends UserBrief {
+  is_manager: boolean
+}
+
+export interface Project {
+  id: number
+  title: string
+  color: string
+  details: string
+  /** تعديل مقترح بانتظار مراجعة المدير — النسخة المعتمدة في details لا تتغير إلا بالاعتماد */
+  pending_details: string
+  has_pending_details: boolean
+  pending_details_by: UserBrief | null
+  pending_details_at: string | null
+  /** غير فارغ = المشروع في سلة المحذوفات */
+  deleted_at: string | null
+  tasks_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Task {
+  id: number
+  project: number
+  project_title: string
+  project_color: string
+  title: string
+  status: TaskStatus
+  color: string
+  tags: string[]
+  assignees: UserBrief[]
+  comments_count: number
+  /** توجد تعليقات من الآخرين لم يقرأها المستخدم الحالي */
+  has_unread_comments: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskComment {
+  id: number
+  author: UserBrief | null // null إذا حُذف حساب الكاتب
+  body: string
+  created_at: string
+}
+
+/** تحديث/حدث على المشروع (توقيع عقد، إرسال كتاب…) — الأحدث في أسفل القائمة */
+export interface ProjectUpdate {
+  id: number
+  project: number
+  project_title: string
+  project_color: string
+  author: UserBrief | null
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+/** مرفق مشروع: صورة أو PDF أو ملف نصي */
+export interface Attachment {
+  id: number
+  project: number
+  /** رابط الملف */
+  file: string
+  file_name: string
+  description: string
+  uploaded_by: UserBrief | null
+  /** الحجم بالبايت */
+  size: number
+  created_at: string
+}
+
+export interface Tag {
+  id: number
+  name: string
+}
+
+export const STATUS_LABELS: Record<TaskStatus, string> = {
+  OPEN: 'مفتوحة',
+  IN_PROGRESS: 'قيد الإنجاز',
+  REVIEW: 'قيد المراجعة',
+  DONE: 'منجزة',
+}
+
+export const TASK_STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[]
+
+export const displayName = (user: UserBrief) => user.first_name || user.username
+
+/** لوحة الألوان الجاهزة للمشاريع والمهام */
+export const COLOR_PALETTE = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
+]
+
+/** الأيقونات الجاهزة للموظفين — يُخزَّن المفتاح في حقل avatar */
+export interface AvatarOption {
+  key: string
+  emoji: string
+  bg: string
+}
+
+export const AVATAR_OPTIONS: AvatarOption[] = [
+  { key: 'builder', emoji: '👷', bg: '#f59e0b' },
+  { key: 'tech', emoji: '🧑‍🔧', bg: '#3b82f6' },
+  { key: 'tech-f', emoji: '👩‍🔧', bg: '#14b8a6' },
+  { key: 'dev', emoji: '🧑‍💻', bg: '#8b5cf6' },
+  { key: 'dev-f', emoji: '👩‍💻', bg: '#ec4899' },
+  { key: 'office', emoji: '🧑‍💼', bg: '#0ea5e9' },
+  { key: 'office-f', emoji: '👩‍💼', bg: '#f43f5e' },
+  { key: 'factory', emoji: '🧑‍🏭', bg: '#f97316' },
+  { key: 'scientist', emoji: '🧑‍🔬', bg: '#22c55e' },
+  { key: 'artist', emoji: '🧑‍🎨', bg: '#a855f7' },
+]
+
+export const AVATAR_MAP: Record<string, AvatarOption> = Object.fromEntries(
+  AVATAR_OPTIONS.map((option) => [option.key, option]),
+)

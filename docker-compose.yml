@@ -1,0 +1,60 @@
+# تشغيل النظام كاملاً بأمر واحد:  docker compose up -d --build
+# الإعدادات تُقرأ من ملف .env بجانب هذا الملف (انسخ .env.example إليه)
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: ${SITE_DOMAIN},localhost,backend
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://${SITE_DOMAIN},http://localhost
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+    volumes:
+      - media:/app/media
+      - static:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - media:/srv/media:ro
+      - static:/srv/static:ro
+      - caddy_data:/data # شهادات HTTPS تبقى بعد إعادة التشغيل
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  media:
+  static:
+  caddy_data:

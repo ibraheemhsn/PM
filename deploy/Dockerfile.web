@@ -1,0 +1,15 @@
+# صورة الويب: بناء واجهة React ثم تقديمها عبر Caddy (مع HTTPS تلقائي)
+# سياق البناء: جذر المستودع (انظر docker-compose.yml)
+
+# المرحلة 1: بناء الواجهة
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+COPY client/ .
+RUN npm run build
+
+# المرحلة 2: Caddy يقدّم الملفات ويعكس /api إلى الخلفية
+FROM caddy:2-alpine
+COPY --from=build /app/dist /srv
+COPY deploy/Caddyfile /etc/caddy/Caddyfile

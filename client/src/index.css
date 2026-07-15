@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== تنسيقات المحتوى الغني (مشتركة بين المحرر ووضع القراءة) =====
+   الحشوة والارتفاع الأدنى يضيفهما المحرر وحده في RichTextEditor.tsx */
+.rich-text {
+  @apply leading-relaxed text-slate-800 outline-none;
+}
+.rich-text h2 {
+  @apply mb-2 mt-4 text-xl font-bold;
+}
+.rich-text h3 {
+  @apply mb-1.5 mt-3 text-lg font-semibold;
+}
+.rich-text p {
+  @apply my-1.5;
+}
+.rich-text ul {
+  @apply my-2 list-disc ps-6;
+}
+.rich-text ol {
+  @apply my-2 list-decimal ps-6;
+}
+.rich-text blockquote {
+  @apply my-2 border-s-4 border-slate-300 ps-3 text-slate-500;
+}
+.rich-text a {
+  @apply cursor-pointer text-blue-600 underline;
+}
+.rich-text img {
+  @apply my-2 max-w-full rounded-lg;
+}
+.rich-text img.ProseMirror-selectednode {
+  @apply ring-2 ring-blue-400;
+}
+
+/* في وضع القراءة: النقر على الصورة يكبّرها */
+.rich-text-view img {
+  @apply cursor-zoom-in;
+}
+
+/* النص التوضيحي عند فراغ المحرر — float-right لأن اتجاه الصفحة RTL */
+.rich-text p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply pointer-events-none float-right h-0 text-slate-400;
+}

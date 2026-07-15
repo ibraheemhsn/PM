@@ -1,0 +1,132 @@
+import { MessageCircle, Pencil, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { cn, formatDate } from '../../lib/utils'
+import { STATUS_LABELS, type Task, type TaskStatus } from '../../types'
+import { Avatar } from '../ui/Avatar'
+import { StatusIcon } from './StatusIcon'
+
+/** المدير يدوّر الحالة عبر الدورة الكاملة، والموظف بين «قيد الإنجاز» و«قيد المراجعة» فقط
+ *  (القيود مفروضة على الخادم أيضاً). */
+const MANAGER_NEXT: Record<TaskStatus, TaskStatus> = {
+  OPEN: 'IN_PROGRESS',
+  IN_PROGRESS: 'REVIEW',
+  REVIEW: 'DONE',
+  DONE: 'OPEN',
+}
+const EMPLOYEE_NEXT: Partial<Record<TaskStatus, TaskStatus>> = {
+  OPEN: 'IN_PROGRESS',
+  IN_PROGRESS: 'REVIEW',
+  REVIEW: 'IN_PROGRESS',
+}
+
+interface TaskCardProps {
+  task: Task
+  /** إظهار شارة المشروع — يُفعَّل في صفحة «جميع المهام» */
+  showProject?: boolean
+  /** المدير: تعديل/حذف + دورة الحالة الكاملة */
+  canManage: boolean
+  onEdit?: () => void
+  onDelete?: () => void
+  onOpenComments: () => void
+  onStatusChange: (status: TaskStatus) => void
+}
+
+export function TaskCard({
+  task, showProject, canManage, onEdit, onDelete, onOpenComments, onStatusChange,
+}: TaskCardProps) {
+  const next = canManage ? MANAGER_NEXT[task.status] : EMPLOYEE_NEXT[task.status]
+
+  return (
+    <div
+      className="group flex items-center gap-3 rounded-xl border border-slate-200 border-s-4 bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow"
+      style={{ borderInlineStartColor: task.color || '#e2e8f0' }}
+    >
+      <button
+        onClick={() => next && onStatusChange(next)}
+        disabled={!next}
+        title={
+          next
+            ? `${STATUS_LABELS[task.status]} — انقر للنقل إلى «${STATUS_LABELS[next]}»`
+            : STATUS_LABELS[task.status]
+        }
+        className="shrink-0 transition-transform enabled:hover:scale-110"
+      >
+        <StatusIcon status={task.status} />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            'truncate text-sm font-medium text-slate-800',
+            task.status === 'DONE' && 'text-slate-400 line-through',
+          )}
+        >
+          {task.title}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+          {showProject && (
+            <Link
+              to={`/projects/${task.project}`}
+              className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: task.project_color }}
+              />
+              {task.project_title}
+            </Link>
+          )}
+          {task.assignees.length > 0 && (
+            <span className="flex items-center ps-1">
+              {task.assignees.slice(0, 3).map((assignee) => (
+                <Avatar key={assignee.id} user={assignee} size={18} className="-ms-1 ring-1 ring-white" />
+              ))}
+              {task.assignees.length > 3 && (
+                <span className="ms-1 text-[10px]">+{task.assignees.length - 3}</span>
+              )}
+            </span>
+          )}
+          {task.tags.map((tag) => (
+            <span key={tag} className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-600">
+              #{tag}
+            </span>
+          ))}
+          <span>{formatDate(task.created_at)}</span>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          onClick={onOpenComments}
+          className="relative flex items-center gap-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+          title={task.has_unread_comments ? 'تعليقات غير مقروءة' : 'التعليقات'}
+        >
+          <MessageCircle size={15} />
+          {task.comments_count > 0 && <span className="text-xs">{task.comments_count}</span>}
+          {/* نقطة حمراء عند وجود تعليقات من الآخرين لم تُقرأ بعد */}
+          {task.has_unread_comments && (
+            <span className="absolute end-0.5 top-0.5 h-2 w-2 rounded-full bg-red-500" />
+          )}
+        </button>
+        {canManage && onEdit && (
+          <button
+            onClick={onEdit}
+            className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-blue-600 group-hover:opacity-100"
+            title="تعديل المهمة"
+          >
+            <Pencil size={15} />
+          </button>
+        )}
+        {canManage && onDelete && (
+          <button
+            onClick={onDelete}
+            className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-red-600 group-hover:opacity-100"
+            title="حذف المهمة"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

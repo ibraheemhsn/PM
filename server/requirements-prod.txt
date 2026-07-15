@@ -1,0 +1,4 @@
+# اعتمادات الإنتاج = اعتمادات التطوير + خادم WSGI + سائق PostgreSQL
+-r requirements.txt
+gunicorn>=22
+psycopg2-binary>=2.9

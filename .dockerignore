@@ -1,0 +1,10 @@
+# سياق بناء صورة الويب (جذر المستودع) — استبعد الثقيل وغير اللازم
+client/node_modules/
+client/dist/
+server/.venv/
+server/media/
+server/staticfiles/
+server/db.sqlite3
+**/__pycache__/
+.env
+.git/

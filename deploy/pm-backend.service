@@ -1,0 +1,21 @@
+# خدمة systemd لتشغيل Django عبر gunicorn تلقائياً مع إقلاع الخادم
+# التثبيت:
+#   sudo cp deploy/pm-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pm-backend
+
+[Unit]
+Description=Al-Fakhar PM Django backend (gunicorn)
+After=network.target postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/pm/server
+EnvironmentFile=/srv/pm/server/.env
+ExecStart=/srv/pm/server/.venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8000 --workers 3 --timeout 60
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

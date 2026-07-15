@@ -1,0 +1,33 @@
+# SITE_ADDRESS يأتي من ملف .env:
+#   - نطاق حقيقي (pm.example.com) → Caddy يصدر شهادة HTTPS تلقائياً ويجددها
+#   - ":80" → HTTP فقط للتجربة المحلية أو خلف موزّع أحمال خارجي
+{$SITE_ADDRESS}
+
+encode gzip
+
+# واجهة Django البرمجية ولوحة الإدارة
+handle /api/* {
+	reverse_proxy backend:8000
+}
+handle /admin/* {
+	reverse_proxy backend:8000
+}
+
+# المرفقات وصور الموظفين وصور المحرر (volume مشترك مع الخلفية)
+handle /media/* {
+	root * /srv
+	file_server
+}
+
+# ملفات لوحة إدارة Django (نتاج collectstatic — volume مشترك)
+handle /static/* {
+	root * /srv
+	file_server
+}
+
+# تطبيق React — أي مسار غير معروف يعود إلى index.html
+handle {
+	root * /srv
+	try_files {path} /index.html
+	file_server
+}
