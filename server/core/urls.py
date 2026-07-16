@@ -3,8 +3,8 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AttachmentViewSet, DetailsImageUploadView, GlobalSearchView, LoginView,
-    LogoutView, MeView, ProjectUpdateViewSet, ProjectViewSet, TagViewSet,
-    TaskViewSet, UserViewSet,
+    LogoutView, MeView, NotificationViewSet, ProjectUpdateViewSet,
+    ProjectViewSet, TagViewSet, TaskViewSet, UserViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +14,7 @@ router.register("attachments", AttachmentViewSet, basename="attachment")
 router.register("tasks", TaskViewSet, basename="task")
 router.register("tags", TagViewSet, basename="tag")
 router.register("users", UserViewSet, basename="user")
+router.register("notifications", NotificationViewSet, basename="notification")
 
 urlpatterns = [
     path("auth/me/", MeView.as_view(), name="auth-me"),

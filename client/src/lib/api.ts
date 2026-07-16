@@ -3,7 +3,8 @@
  *  - المصادقة عبر جلسات Django: نرفق ترويسة X-CSRFToken من الكعكة
  *    (تُزرع عند نداء /auth/me/ أول مرة) مع كل طلب غير GET. */
 import type {
-  Attachment, Project, ProjectUpdate, Tag, Task, TaskComment, TaskStatus, User,
+  AppNotification, Attachment, Project, ProjectUpdate, Tag, Task, TaskComment,
+  TaskStatus, User,
 } from '../types'
 
 export interface ProjectInput {
@@ -44,7 +45,7 @@ function getCookie(name: string): string {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {}
-  if ((options.method ?? 'GET') !== 'GET') headers['X-CSRFToken'] = getCookie('csrftoken')
+  if ((options.method ?? 'GET') !== 'GET') headers['X-CSRFToken'] = getCookie('pm_csrftoken')
   // مع FormData يضبط المتصفح الترويسة (مع boundary) بنفسه
   if (options.body && !(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
@@ -155,5 +156,14 @@ export const api = {
   },
   tags: {
     list: () => request<Tag[]>('/tags/'),
+  },
+  notifications: {
+    list: () => request<AppNotification[]>('/notifications/'),
+    /** بدون ids: يعلّم الكل كمقروء */
+    markRead: (ids?: number[]) =>
+      request<void>('/notifications/mark_read/', {
+        method: 'POST',
+        body: JSON.stringify(ids ? { ids } : {}),
+      }),
   },
 }

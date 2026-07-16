@@ -1,10 +1,11 @@
-import { ChevronDown, ChevronUp, Pencil, Send, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useProjectUpdateMutations, useProjectUpdates } from '../../hooks/useProjects'
 import { formatDate } from '../../lib/utils'
 import { displayName, type ProjectUpdate } from '../../types'
 import { Avatar } from '../ui/Avatar'
+import { Modal } from '../ui/Modal'
 
 /** عدد التحديثات الظاهرة افتراضياً (الأحدث في الأسفل، والأقدم مخفية) */
 const DEFAULT_VISIBLE = 2
@@ -19,6 +20,7 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
   const { create, update, remove } = useProjectUpdateMutations(projectId)
 
   const [showAll, setShowAll] = useState(false)
+  const [adding, setAdding] = useState(false)
   const [body, setBody] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editBody, setEditBody] = useState('')
@@ -35,7 +37,12 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
     e.preventDefault()
     const text = body.trim()
     if (!text || create.isPending) return
-    create.mutate(text, { onSuccess: () => setBody('') })
+    create.mutate(text, {
+      onSuccess: () => {
+        setBody('')
+        setAdding(false)
+      },
+    })
   }
 
   const startEdit = (item: ProjectUpdate) => {
@@ -56,9 +63,18 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
 
   return (
     <section>
-      <h2 className="mb-2 font-bold text-slate-700">
-        التحديثات <span className="text-sm font-normal text-slate-400">({updates.length})</span>
-      </h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-bold text-slate-700">
+          التحديثات <span className="text-sm font-normal text-slate-400">({updates.length})</span>
+        </h2>
+        <button
+          onClick={() => setAdding(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          <Plus size={15} />
+          إضافة تحديث
+        </button>
+      </div>
 
       {/* إظهار/إخفاء التحديثات القديمة */}
       {hiddenCount > 0 && (
@@ -133,6 +149,13 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
                     autoFocus
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Ctrl+Enter يحفظ التعديل مباشرة
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault()
+                        saveEdit()
+                      }
+                    }}
                     rows={2}
                     className="w-full resize-none rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
                   />
@@ -160,24 +183,46 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
         ))}
       </div>
 
-      {/* إضافة تحديث جديد — يظهر أسفل القائمة لأن الأحدث في الأسفل */}
-      <form onSubmit={handleCreate} className="mt-3 flex items-end gap-2">
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={2}
-          placeholder="سجّل حدثاً أو إجراءً… مثال: تم توقيع العقد مع المقاول"
-          className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-        />
-        <button
-          type="submit"
-          disabled={!body.trim() || create.isPending}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          <Send size={14} />
-          إضافة تحديث
-        </button>
-      </form>
+      {/* إضافة تحديث جديد — نافذة منبثقة تُفتح من زر الترويسة */}
+      {adding && (
+        <Modal title="إضافة تحديث" onClose={() => setAdding(false)}>
+          <form onSubmit={handleCreate}>
+            <textarea
+              autoFocus
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                // Ctrl+Enter (أو Cmd+Enter على ماك) يرسل كما لو نُقر زر الإضافة
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault()
+                  e.currentTarget.form?.requestSubmit()
+                }
+              }}
+              rows={4}
+              placeholder="سجّل حدثاً أو إجراءً… مثال: تم توقيع العقد مع المقاول"
+              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAdding(false)}
+                disabled={create.isPending}
+                className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                disabled={!body.trim() || create.isPending}
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Send size={14} />
+                {create.isPending ? 'جارٍ الإضافة…' : 'إضافة التحديث'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </section>
   )
 }

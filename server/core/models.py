@@ -176,6 +176,48 @@ class TaskCommentRead(models.Model):
         return f"قراءة {self.user_id} لمهمة {self.task_id}"
 
 
+class Notification(models.Model):
+    """إشعار داخل التطبيق: إسناد مهمة، تعليق جديد، طلب مراجعة…
+    تُنشأ من الـ views وتُقرأ عبر فحص دوري من الواجهة (مع إشعار متصفح وصوت)."""
+
+    class Kind(models.TextChoices):
+        TASK_ASSIGNED = "TASK_ASSIGNED", "مهمة مسندة"
+        TASK_STATUS = "TASK_STATUS", "تغيير حالة مهمة"
+        NEW_COMMENT = "NEW_COMMENT", "تعليق جديد"
+        DETAILS_PROPOSED = "DETAILS_PROPOSED", "تعديل مقترح"
+        PROJECT_UPDATE = "PROJECT_UPDATE", "تحديث مشروع"
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="notifications", verbose_name="المستلم",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name="الفاعل",
+    )
+    kind = models.CharField("النوع", max_length=20, choices=Kind.choices)
+    message = models.CharField("النص", max_length=300)
+    task = models.ForeignKey(
+        Task, null=True, blank=True, on_delete=models.CASCADE, related_name="+",
+        verbose_name="المهمة",
+    )
+    project = models.ForeignKey(
+        Project, null=True, blank=True, on_delete=models.CASCADE, related_name="+",
+        verbose_name="المشروع",
+    )
+    is_read = models.BooleanField("مقروء", default=False)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["recipient", "is_read"])]
+        verbose_name = "إشعار"
+        verbose_name_plural = "الإشعارات"
+
+    def __str__(self):
+        return f"إشعار لـ {self.recipient_id}: {self.message[:40]}"
+
+
 class Attachment(models.Model):
     """مرفق تابع لمشروع: صورة أو PDF أو ملف نصي، مع وصف واسم الرافع."""
 

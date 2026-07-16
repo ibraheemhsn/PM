@@ -9,7 +9,9 @@ from pathlib import Path
 
 from rest_framework import serializers
 
-from .models import Attachment, Project, ProjectUpdate, Tag, Task, TaskComment, User
+from .models import (
+    Attachment, Notification, Project, ProjectUpdate, Tag, Task, TaskComment, User,
+)
 
 # أنواع المرفقات المسموحة: صور وPDF وملفات نصية
 ALLOWED_ATTACHMENT_EXTENSIONS = {
@@ -192,6 +194,14 @@ class AttachmentSerializer(serializers.ModelSerializer):
         validated_data.pop("file", None)
         validated_data.pop("project", None)
         return super().update(instance, validated_data)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    actor = UserBriefSerializer(read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = ["id", "kind", "message", "actor", "task", "project", "is_read", "created_at"]
 
 
 class ImageUploadSerializer(serializers.Serializer):

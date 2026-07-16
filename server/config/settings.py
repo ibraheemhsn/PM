@@ -18,6 +18,10 @@ ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
 ]
+# أثناء التطوير تمر الطلبات عبر وسيط Vite فيختلف الـ Origin عن مضيف Django —
+# بدون هذا السطر يرفض Django أي POST من المتصفح بـ "Origin checking failed"
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -104,6 +108,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # نموذج مستخدم مخصص (صورة + دور مدير/موظف)
 AUTH_USER_MODEL = "core.User"
+
+# أسماء مخصصة للكوكيز حتى لا تتعارض مع كوكيز Secure قديمة على نفس النطاق
+# (كوكي sessionid قديم بخاصية Secure على localhost يمنع المتصفح من حفظ الجديد عبر http)
+SESSION_COOKIE_NAME = "pm_sessionid"
+CSRF_COOKIE_NAME = "pm_csrftoken"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

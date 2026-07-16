@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils'
 import { displayName, type Project } from '../../types'
 import { ProjectFormModal } from '../projects/ProjectFormModal'
 import { Avatar } from '../ui/Avatar'
+import { NotificationsBell } from './NotificationsBell'
 
 interface SidebarProps {
   onOpenSearch: () => void
@@ -54,13 +55,16 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
           <h1 className="text-lg font-bold text-white">شركة الفخار</h1>
           <p className="text-xs text-slate-400">لوحة إدارة المشاريع والمهام</p>
         </div>
-        <button
-          onClick={onOpenSearch}
-          title="بحث شامل (Ctrl+K)"
-          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
-        >
-          <Search size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationsBell />
+          <button
+            onClick={onOpenSearch}
+            title="بحث شامل (Ctrl+K)"
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <Search size={18} />
+          </button>
+        </div>
       </div>
 
       {/* التنقل الرئيسي */}

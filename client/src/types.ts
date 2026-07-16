@@ -88,6 +88,18 @@ export interface Tag {
   name: string
 }
 
+/** إشعار داخل التطبيق — يُعرض في جرس الشريط الجانبي وكإشعار متصفح مع صوت */
+export interface AppNotification {
+  id: number
+  kind: 'TASK_ASSIGNED' | 'TASK_STATUS' | 'NEW_COMMENT' | 'DETAILS_PROPOSED' | 'PROJECT_UPDATE'
+  message: string
+  actor: UserBrief | null
+  task: number | null
+  project: number | null
+  is_read: boolean
+  created_at: string
+}
+
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   OPEN: 'مفتوحة',
   IN_PROGRESS: 'قيد الإنجاز',

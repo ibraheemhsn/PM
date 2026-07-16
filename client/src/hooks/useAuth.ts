@@ -18,15 +18,17 @@ export function useAuthMutations() {
     login: useMutation({
       mutationFn: api.auth.login,
       onSuccess: ({ user }) => {
-        // امسح كل بيانات الجلسة السابقة ثم ثبّت المستخدم الجديد
-        queryClient.clear()
+        // امسح بيانات الجلسة السابقة ثم ثبّت المستخدم الجديد.
+        // لا تستخدم clear() هنا: إزالة استعلام ['me'] بينما الواجهة تراقبه
+        // تفصلها عن القيمة الجديدة فلا يحدث الانتقال بعد الدخول.
+        queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' })
         queryClient.setQueryData(['me'], user)
       },
     }),
     logout: useMutation({
       mutationFn: api.auth.logout,
       onSuccess: () => {
-        queryClient.clear()
+        queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' })
         queryClient.setQueryData(['me'], null)
       },
     }),

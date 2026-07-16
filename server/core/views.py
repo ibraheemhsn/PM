@@ -20,14 +20,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
-    Attachment, Project, ProjectUpdate, Tag, Task, TaskComment,
+    Attachment, Notification, Project, ProjectUpdate, Tag, Task, TaskComment,
     TaskCommentRead, User,
 )
 from .permissions import IsManager, IsManagerOrReadOnly, is_manager
 from .serializers import (
-    AttachmentSerializer, ImageUploadSerializer, ProjectSerializer,
-    ProjectUpdateSerializer, TagSerializer, TaskCommentSerializer,
-    TaskSerializer, UserSerializer,
+    AttachmentSerializer, ImageUploadSerializer, NotificationSerializer,
+    ProjectSerializer, ProjectUpdateSerializer, TagSerializer,
+    TaskCommentSerializer, TaskSerializer, UserSerializer,
 )
 
 ALLOWED_TASK_ORDERINGS = {"created_at", "updated_at"}
@@ -35,6 +35,49 @@ ALLOWED_TASK_ORDERINGS = {"created_at", "updated_at"}
 # ما يُسمح للموظف بتعديله في المهمة
 EMPLOYEE_EDITABLE_FIELDS = {"status"}
 EMPLOYEE_ALLOWED_STATUSES = {Task.Status.IN_PROGRESS, Task.Status.REVIEW}
+
+
+# ===== الإشعارات =====
+
+def _managers():
+    return User.objects.filter(Q(is_manager=True) | Q(is_superuser=True))
+
+
+def _notify(recipients, *, actor, kind, message, task=None, project=None):
+    """أنشئ إشعاراً لكل مستلم — مع استبعاد الفاعل نفسه وإزالة التكرار."""
+    unique = {r.id: r for r in recipients if r.id != actor.id}
+    Notification.objects.bulk_create(
+        Notification(
+            recipient=r, actor=actor, kind=kind, message=message,
+            task=task, project=project,
+        )
+        for r in unique.values()
+    )
+
+
+class NotificationViewSet(viewsets.GenericViewSet):
+    """إشعارات المستخدم الحالي: القائمة (آخر 30) + تعليم كمقروء.
+    الواجهة تفحصها دورياً وتعرض الجديد كإشعار متصفح مع صوت."""
+
+    serializer_class = NotificationSerializer
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user)
+
+    def list(self, request):
+        qs = self.get_queryset().select_related("actor")[:30]
+        return Response(
+            NotificationSerializer(qs, many=True, context={"request": request}).data
+        )
+
+    @action(detail=False, methods=["post"])
+    def mark_read(self, request):
+        """بدون ids: يعلّم الكل كمقروء؛ ومع ids: المحددة فقط."""
+        qs = self.get_queryset().filter(is_read=False)
+        if ids := request.data.get("ids"):
+            qs = qs.filter(id__in=ids)
+        qs.update(is_read=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ===== المصادقة (جلسات Django) =====
@@ -138,6 +181,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project.pending_details_by = request.user
         project.pending_details_at = timezone.now()
         project.save()
+        _notify(
+            _managers(), actor=request.user,
+            kind=Notification.Kind.DETAILS_PROPOSED,
+            message=f"اقترح {request.user} تعديلاً على تفاصيل مشروع «{project.title}»",
+            project=project,
+        )
         return self._project_response(request, project)
 
     @action(detail=True, methods=["post"], permission_classes=[IsManager])
@@ -221,6 +270,15 @@ class TaskViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("إنشاء المهام متاح للمدير فقط.")
         return super().create(request, *args, **kwargs)
 
+    def perform_create(self, serializer):
+        task = serializer.save()
+        _notify(
+            task.assignees.all(), actor=self.request.user,
+            kind=Notification.Kind.TASK_ASSIGNED,
+            message=f"أسند إليك {self.request.user} مهمة «{task.title}»",
+            task=task, project=task.project,
+        )
+
     def update(self, request, *args, **kwargs):
         if not is_manager(request.user):
             extra_fields = set(request.data.keys()) - EMPLOYEE_EDITABLE_FIELDS
@@ -230,7 +288,45 @@ class TaskViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied(
                     "يمكن للموظف نقل المهمة إلى «قيد الإنجاز» أو «قيد المراجعة» فقط."
                 )
-        return super().update(request, *args, **kwargs)
+
+        task = self.get_object()
+        old_assignees = set(task.assignees.values_list("id", flat=True))
+        old_status = task.status
+        response = super().update(request, *args, **kwargs)
+        task.refresh_from_db()
+
+        # إشعار من أُسندت إليهم المهمة حديثاً
+        added = set(task.assignees.values_list("id", flat=True)) - old_assignees
+        if added:
+            _notify(
+                User.objects.filter(id__in=added), actor=request.user,
+                kind=Notification.Kind.TASK_ASSIGNED,
+                message=f"أسند إليك {request.user} مهمة «{task.title}»",
+                task=task, project=task.project,
+            )
+
+        # إشعار تغيّر الحالة: الموظف يرفع للمراجعة → المدراء،
+        # والمدير يغيّر الحالة → الموظفون المسندون
+        if task.status != old_status:
+            if not is_manager(request.user):
+                if task.status == Task.Status.REVIEW:
+                    _notify(
+                        _managers(), actor=request.user,
+                        kind=Notification.Kind.TASK_STATUS,
+                        message=f"رفع {request.user} مهمة «{task.title}» للمراجعة",
+                        task=task, project=task.project,
+                    )
+            else:
+                _notify(
+                    task.assignees.all(), actor=request.user,
+                    kind=Notification.Kind.TASK_STATUS,
+                    message=(
+                        f"غيّر {request.user} حالة مهمة «{task.title}» "
+                        f"إلى «{task.get_status_display()}»"
+                    ),
+                    task=task, project=task.project,
+                )
+        return response
 
     def destroy(self, request, *args, **kwargs):
         if not is_manager(request.user):
@@ -253,6 +349,13 @@ class TaskViewSet(viewsets.ModelViewSet):
         serializer = TaskCommentSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save(task=task, author=request.user)
+        # يصل الإشعار للموظفين المسندين وللمدراء — عدا كاتب التعليق
+        _notify(
+            list(task.assignees.all()) + list(_managers()), actor=request.user,
+            kind=Notification.Kind.NEW_COMMENT,
+            message=f"علّق {request.user} على مهمة «{task.title}»",
+            task=task, project=task.project,
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -271,7 +374,17 @@ class ProjectUpdateViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        update = serializer.save(author=self.request.user)
+        # يصل الإشعار للمدراء ولكل موظف له مهمة في المشروع — عدا الكاتب
+        recipients = list(_managers()) + list(
+            User.objects.filter(assigned_tasks__project=update.project)
+        )
+        _notify(
+            recipients, actor=self.request.user,
+            kind=Notification.Kind.PROJECT_UPDATE,
+            message=f"أضاف {self.request.user} تحديثاً على مشروع «{update.project.title}»",
+            project=update.project,
+        )
 
     def update(self, request, *args, **kwargs):
         self._check_can_modify(request)
