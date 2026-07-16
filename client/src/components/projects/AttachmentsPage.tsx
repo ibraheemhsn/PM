@@ -4,7 +4,10 @@ import { Link } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useAllAttachments, useAttachmentMutations, useProjects } from '../../hooks/useProjects'
 import { cn, formatDate, formatFileSize, isImageFile } from '../../lib/utils'
-import { displayName, type Attachment } from '../../types'
+import {
+  ATTACHMENT_CATEGORIES, ATTACHMENT_CATEGORY_LABELS, displayName,
+  type Attachment, type AttachmentCategory,
+} from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Lightbox } from '../ui/Lightbox'
 
@@ -33,17 +36,23 @@ export function AttachmentsPage() {
   const [query, setQuery] = useState('')
   const [projectFilter, setProjectFilter] = useState<number | 'all'>('all')
   const [kindFilter, setKindFilter] = useState<FileKind | 'all'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<AttachmentCategory | 'all'>('all')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editDescription, setEditDescription] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
 
-  const hasActiveFilters = query.trim() !== '' || projectFilter !== 'all' || kindFilter !== 'all'
+  const hasActiveFilters =
+    query.trim() !== '' ||
+    projectFilter !== 'all' ||
+    kindFilter !== 'all' ||
+    categoryFilter !== 'all'
 
   const visible = useMemo(() => {
     const text = query.trim().toLowerCase()
     return attachments
       .filter((a) => projectFilter === 'all' || a.project === projectFilter)
       .filter((a) => kindFilter === 'all' || fileKind(a.file_name) === kindFilter)
+      .filter((a) => categoryFilter === 'all' || a.category === categoryFilter)
       .filter(
         (a) =>
           !text ||
@@ -51,7 +60,7 @@ export function AttachmentsPage() {
           a.description.toLowerCase().includes(text) ||
           (a.uploaded_by ? displayName(a.uploaded_by).toLowerCase().includes(text) : false),
       )
-  }, [attachments, query, projectFilter, kindFilter])
+  }, [attachments, query, projectFilter, kindFilter, categoryFilter])
 
   const canModify = (attachment: Attachment) =>
     isManager || attachment.uploaded_by?.id === me?.id
@@ -154,6 +163,7 @@ export function AttachmentsPage() {
                 setQuery('')
                 setProjectFilter('all')
                 setKindFilter('all')
+                setCategoryFilter('all')
               }}
               className="flex items-center gap-1 rounded-lg px-2 py-2 text-sm text-slate-500 hover:bg-slate-100"
               title="مسح الفلاتر"
@@ -162,6 +172,36 @@ export function AttachmentsPage() {
               مسح
             </button>
           )}
+        </div>
+
+        {/* الفلترة السريعة حسب التصنيف */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-slate-400">التصنيف:</span>
+          <button
+            onClick={() => setCategoryFilter('all')}
+            className={cn(
+              'rounded-full px-2.5 py-1 text-xs transition-colors',
+              categoryFilter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:ring-blue-300',
+            )}
+          >
+            الكل
+          </button>
+          {ATTACHMENT_CATEGORIES.map((value) => (
+            <button
+              key={value}
+              onClick={() => setCategoryFilter((f) => (f === value ? 'all' : value))}
+              className={cn(
+                'rounded-full px-2.5 py-1 text-xs transition-colors',
+                categoryFilter === value
+                  ? 'bg-blue-50 font-medium text-blue-700 ring-1 ring-blue-400'
+                  : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:ring-blue-300',
+              )}
+            >
+              {ATTACHMENT_CATEGORY_LABELS[value]}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -214,6 +254,11 @@ export function AttachmentsPage() {
                   {attachment.file_name}
                 </a>
                 <span className="text-xs text-slate-400">{formatFileSize(attachment.size)}</span>
+                {attachment.category && (
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600">
+                    {ATTACHMENT_CATEGORY_LABELS[attachment.category]}
+                  </span>
+                )}
                 {/* شارة المشروع — تنقل لصفحته */}
                 <Link
                   to={`/projects/${attachment.project}`}

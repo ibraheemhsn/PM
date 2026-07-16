@@ -1,5 +1,6 @@
 import {
-  Check, ChevronDown, ChevronUp, Eye, Folder, Pencil, Plus, Save, Trash2, Undo2,
+  Check, ChevronDown, ChevronUp, Eye, FileOutput, FileSpreadsheet, Folder,
+  FolderDown, Pencil, Plus, Save, Trash2, Undo2,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -85,7 +86,7 @@ export function ProjectPage() {
         <div className="flex items-center gap-3">
           <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
           <h1 className="min-w-0 truncate text-2xl font-bold text-slate-900">{project.title}</h1>
-          {/* أيقونة الفولدر: تفتح «رابط الشير» (مجلد ملفات المشروع) في تبويب جديد */}
+          {/* روابط المشروع السريعة — كل أيقونة تفتح رابطها في تبويب جديد */}
           {project.share_link && (
             <a
               href={externalHref(project.share_link)}
@@ -94,7 +95,40 @@ export function ProjectPage() {
               title={`فتح مجلد ملفات المشروع\n${project.share_link}`}
               className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
             >
-              <Folder size={22} className="text-amber-500" fill="#fcd34d" />
+              <Folder size={21} className="text-amber-600" />
+            </a>
+          )}
+          {project.outgoing_link && (
+            <a
+              href={externalHref(project.outgoing_link)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`ملف الصادر (Google Docs)\n${project.outgoing_link}`}
+              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
+            >
+              <FileOutput size={21} className="text-blue-600" />
+            </a>
+          )}
+          {project.accounts_link && (
+            <a
+              href={externalHref(project.accounts_link)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`ملف الحسابات (Google Sheets)\n${project.accounts_link}`}
+              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
+            >
+              <FileSpreadsheet size={21} className="text-emerald-600" />
+            </a>
+          )}
+          {project.incoming_link && (
+            <a
+              href={externalHref(project.incoming_link)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`مجلد الواردة (Google Drive)\n${project.incoming_link}`}
+              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
+            >
+              <FolderDown size={21} className="text-violet-600" />
             </a>
           )}
           <div className="flex-1" />

@@ -77,12 +77,21 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">عنوان المهمة</label>
-          <input
+          {/* متعدد الأسطر للعناوين الطويلة — Enter يحفظ، وShift+Enter لا يضيف سطراً
+              لأن العنوان نص واحد يلتف تلقائياً */}
+          <textarea
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                e.currentTarget.form?.requestSubmit()
+              }
+            }}
+            rows={3}
             placeholder="مثال: مراجعة مخططات التمديدات الكهربائية"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed outline-none focus:border-blue-400"
           />
         </div>
 

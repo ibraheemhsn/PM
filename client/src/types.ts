@@ -21,8 +21,14 @@ export interface Project {
   title: string
   color: string
   details: string
-  /** رابط مشاركة ملفات المشروع (Drive/مسار شبكة…) — أيقونة الفولدر بجانب العنوان */
+  /** رابط مشاركة ملفات المشروع — أيقونة الفولدر بجانب العنوان */
   share_link: string
+  /** ملف Google Docs للكتب الصادرة */
+  outgoing_link: string
+  /** ملف Google Sheets لحسابات المشروع والأسعار */
+  accounts_link: string
+  /** مجلد Google Drive لصور الكتب الواردة */
+  incoming_link: string
   /** تعديل مقترح بانتظار مراجعة المدير — النسخة المعتمدة في details لا تتغير إلا بالاعتماد */
   pending_details: string
   has_pending_details: boolean
@@ -83,6 +89,30 @@ export interface ProjectUpdate {
   updated_at: string
 }
 
+/** تصنيفات المرفقات — أساس الفلترة السريعة في أقسام المرفقات */
+export type AttachmentCategory =
+  | 'OUTGOING'
+  | 'INCOMING'
+  | 'ACCOUNTS'
+  | 'OFFER'
+  | 'QUOTATION'
+  | 'DATASHEET'
+  | 'MANUAL'
+
+export const ATTACHMENT_CATEGORY_LABELS: Record<AttachmentCategory, string> = {
+  OUTGOING: 'صادر',
+  INCOMING: 'وارد',
+  ACCOUNTS: 'حسابات',
+  OFFER: 'عرض',
+  QUOTATION: 'Quotation',
+  DATASHEET: 'Datasheet',
+  MANUAL: 'Manual',
+}
+
+export const ATTACHMENT_CATEGORIES = Object.keys(
+  ATTACHMENT_CATEGORY_LABELS,
+) as AttachmentCategory[]
+
 /** مرفق مشروع: صورة أو PDF أو ملف نصي */
 export interface Attachment {
   id: number
@@ -93,6 +123,8 @@ export interface Attachment {
   file: string
   file_name: string
   description: string
+  /** التصنيف — فارغ إذا لم يُحدد */
+  category: AttachmentCategory | ''
   uploaded_by: UserBrief | null
   /** الحجم بالبايت */
   size: number

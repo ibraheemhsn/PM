@@ -68,7 +68,8 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            "id", "title", "color", "details", "share_link",
+            "id", "title", "color", "details",
+            "share_link", "outgoing_link", "accounts_link", "incoming_link",
             "pending_details", "has_pending_details", "pending_details_by", "pending_details_at",
             "deleted_at", "tasks_count", "has_unread", "created_at", "updated_at",
         ]
@@ -210,7 +211,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
         model = Attachment
         fields = [
             "id", "project", "project_title", "project_color", "file", "file_name",
-            "description", "uploaded_by", "size", "created_at",
+            "description", "category", "uploaded_by", "size", "created_at",
         ]
         read_only_fields = ["file_name"]
 

@@ -1,9 +1,12 @@
-import { FileText, Paperclip, Pencil, Trash2, Upload, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, FileText, Paperclip, Pencil, Trash2, Upload, X } from 'lucide-react'
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useAttachmentMutations, useAttachments } from '../../hooks/useProjects'
-import { formatDate, formatFileSize, isImageFile } from '../../lib/utils'
-import { displayName, type Attachment } from '../../types'
+import { cn, formatDate, formatFileSize, isImageFile } from '../../lib/utils'
+import {
+  ATTACHMENT_CATEGORIES, ATTACHMENT_CATEGORY_LABELS, displayName,
+  type Attachment, type AttachmentCategory,
+} from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Lightbox } from '../ui/Lightbox'
 
@@ -19,12 +22,25 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
   const { create, update, remove } = useAttachmentMutations(projectId)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // القسم مطوي افتراضياً — كالتفاصيل الفنية: النقر على الكرت يفتحه
+  const [expanded, setExpanded] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<AttachmentCategory | 'all'>('all')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editDescription, setEditDescription] = useState('')
+  const [editCategory, setEditCategory] = useState('')
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
+
+  // الفلترة السريعة حسب التصنيف — مع عدّاد لكل تصنيف موجود
+  const visible =
+    categoryFilter === 'all'
+      ? attachments
+      : attachments.filter((a) => a.category === categoryFilter)
+  const categoryCount = (value: AttachmentCategory) =>
+    attachments.filter((a) => a.category === value).length
 
   const canModify = (attachment: Attachment) =>
     isManager || attachment.uploaded_by?.id === me?.id
@@ -35,6 +51,7 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
     if (file) {
       setPendingFile(file)
       setDescription('')
+      setCategory('')
       setError('')
     }
   }
@@ -43,11 +60,12 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
     if (!pendingFile || create.isPending) return
     setError('')
     create.mutate(
-      { file: pendingFile, description: description.trim() },
+      { file: pendingFile, description: description.trim(), category },
       {
         onSuccess: () => {
           setPendingFile(null)
           setDescription('')
+          setCategory('')
         },
         onError: (err) =>
           setError(
@@ -62,12 +80,13 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
   const startEdit = (attachment: Attachment) => {
     setEditingId(attachment.id)
     setEditDescription(attachment.description)
+    setEditCategory(attachment.category)
   }
 
   const saveEdit = () => {
     if (editingId === null || update.isPending) return
     update.mutate(
-      { id: editingId, description: editDescription.trim() },
+      { id: editingId, description: editDescription.trim(), category: editCategory },
       { onSuccess: () => setEditingId(null) },
     )
   }
@@ -78,7 +97,17 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
   }
 
   return (
-    <section>
+    // كرت بنفس سلوك «التفاصيل الفنية»: مطويٌّ يتصرف كزر —
+    // مؤشر يد + ظل عند التحويم + النقر في أي مكان يوسّعه
+    <section
+      onClick={() => {
+        if (!expanded) setExpanded(true)
+      }}
+      className={cn(
+        'rounded-xl border border-slate-200/70 bg-white p-4 transition-shadow duration-200',
+        !expanded && 'cursor-pointer hover:shadow-lg hover:shadow-slate-200/80',
+      )}
+    >
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-bold text-slate-700">
           المرفقات{' '}
@@ -99,6 +128,50 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
           className="hidden"
         />
       </div>
+
+      {/* مطوي: زر التوسيع فقط — والنقر على الكرت كله يوسّع أيضاً */}
+      {!expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="mt-1 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          <ChevronDown size={15} />
+          عرض المزيد
+        </button>
+      )}
+
+      {expanded && (
+      <>
+      {/* الفلترة السريعة حسب التصنيف */}
+      {attachments.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setCategoryFilter('all')}
+            className={cn(
+              'rounded-full px-2.5 py-1 text-xs transition-colors',
+              categoryFilter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:ring-blue-300',
+            )}
+          >
+            الكل ({attachments.length})
+          </button>
+          {ATTACHMENT_CATEGORIES.map((value) => (
+            <button
+              key={value}
+              onClick={() => setCategoryFilter((f) => (f === value ? 'all' : value))}
+              className={cn(
+                'rounded-full px-2.5 py-1 text-xs transition-colors',
+                categoryFilter === value
+                  ? 'bg-blue-50 font-medium text-blue-700 ring-1 ring-blue-400'
+                  : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:ring-blue-300',
+              )}
+            >
+              {ATTACHMENT_CATEGORY_LABELS[value]} ({categoryCount(value)})
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* نموذج إكمال الرفع: وصف الملف المختار */}
       {pendingFile && (
@@ -128,6 +201,18 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
               placeholder="وصف المرفق… مثال: نسخة العقد الموقعة"
               className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm outline-none focus:border-blue-400"
+            >
+              <option value="">بلا تصنيف</option>
+              {ATTACHMENT_CATEGORIES.map((value) => (
+                <option key={value} value={value}>
+                  {ATTACHMENT_CATEGORY_LABELS[value]}
+                </option>
+              ))}
+            </select>
             <button
               onClick={submitUpload}
               disabled={create.isPending}
@@ -149,8 +234,13 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
             <p className="text-sm">لا توجد مرفقات بعد — ارفع صوراً أو ملفات PDF أو ملفات نصية</p>
           </div>
         )}
+        {!isLoading && attachments.length > 0 && visible.length === 0 && (
+          <p className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
+            لا مرفقات بهذا التصنيف
+          </p>
+        )}
 
-        {attachments.map((attachment) => (
+        {visible.map((attachment) => (
           <div
             key={attachment.id}
             className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
@@ -186,6 +276,11 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
                   {attachment.file_name}
                 </a>
                 <span className="text-xs text-slate-400">{formatFileSize(attachment.size)}</span>
+                {attachment.category && (
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600">
+                    {ATTACHMENT_CATEGORY_LABELS[attachment.category]}
+                  </span>
+                )}
               </div>
 
               {editingId === attachment.id ? (
@@ -197,6 +292,18 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
                     onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                     className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-blue-400"
                   />
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                  >
+                    <option value="">بلا تصنيف</option>
+                    {ATTACHMENT_CATEGORIES.map((value) => (
+                      <option key={value} value={value}>
+                        {ATTACHMENT_CATEGORY_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={() => setEditingId(null)}
                     className="rounded-lg px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
@@ -250,6 +357,17 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
           </div>
         ))}
       </div>
+
+      {/* «عرض أقل» أسفل القسم — يطوي الكرت */}
+      <button
+        onClick={() => setExpanded(false)}
+        className="mt-4 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+      >
+        <ChevronUp size={15} />
+        عرض أقل
+      </button>
+      </>
+      )}
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </section>

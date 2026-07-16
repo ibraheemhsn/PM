@@ -13,6 +13,12 @@ export interface ProjectInput {
   details?: string
   /** رابط مشاركة ملفات المشروع */
   share_link?: string
+  /** ملف Google Docs للكتب الصادرة */
+  outgoing_link?: string
+  /** ملف Google Sheets لحسابات المشروع والأسعار */
+  accounts_link?: string
+  /** مجلد Google Drive لصور الكتب الواردة */
+  incoming_link?: string
 }
 
 export interface TaskInput {
@@ -134,17 +140,18 @@ export const api = {
     /** كل المرفقات عبر جميع المشاريع — لصفحة «كل المرفقات» */
     listAll: () => request<Attachment[]>('/attachments/'),
     list: (projectId: number) => request<Attachment[]>(`/attachments/?project=${projectId}`),
-    create: (projectId: number, file: File, description: string) => {
+    create: (projectId: number, file: File, description: string, category: string) => {
       const data = new FormData()
       data.append('project', String(projectId))
       data.append('file', file)
       data.append('description', description)
+      data.append('category', category)
       return request<Attachment>('/attachments/', { method: 'POST', body: data })
     },
-    update: (id: number, description: string) =>
+    update: (id: number, data: { description?: string; category?: string }) =>
       request<Attachment>(`/attachments/${id}/`, {
         method: 'PATCH',
-        body: JSON.stringify({ description }),
+        body: JSON.stringify(data),
       }),
     remove: (id: number) => request<void>(`/attachments/${id}/`, { method: 'DELETE' }),
   },

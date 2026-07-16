@@ -18,6 +18,9 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
   const [title, setTitle] = useState(project?.title ?? '')
   const [color, setColor] = useState(project?.color ?? COLOR_PALETTE[5])
   const [shareLink, setShareLink] = useState(project?.share_link ?? '')
+  const [outgoingLink, setOutgoingLink] = useState(project?.outgoing_link ?? '')
+  const [accountsLink, setAccountsLink] = useState(project?.accounts_link ?? '')
+  const [incomingLink, setIncomingLink] = useState(project?.incoming_link ?? '')
 
   const saving = create.isPending || update.isPending
 
@@ -25,7 +28,14 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
     e.preventDefault()
     const trimmed = title.trim()
     if (!trimmed || saving) return
-    const data = { title: trimmed, color, share_link: shareLink.trim() }
+    const data = {
+      title: trimmed,
+      color,
+      share_link: shareLink.trim(),
+      outgoing_link: outgoingLink.trim(),
+      accounts_link: accountsLink.trim(),
+      incoming_link: incomingLink.trim(),
+    }
 
     if (project) {
       update.mutate({ id: project.id, data }, { onSuccess: onClose })
@@ -56,18 +66,42 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">رابط الشير</label>
+        {/* روابط المشروع الخارجية — تظهر أيقوناتها بجانب عنوان المشروع */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-slate-600">
+            روابط المشروع{' '}
+            <span className="text-[11px] font-normal text-slate-400">
+              (اختيارية — تظهر أيقوناتها بجانب عنوان المشروع)
+            </span>
+          </label>
           <input
             value={shareLink}
             onChange={(e) => setShareLink(e.target.value)}
             dir="ltr"
-            placeholder="https://drive.google.com/… أو \\server\share\project"
+            placeholder="📁 رابط الشير — \\server\share أو رابط سحابي"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
-          <p className="mt-1 text-[11px] text-slate-400">
-            اختياري — رابط مجلد ملفات المشروع؛ تظهر أيقونة فولدر بجانب عنوان المشروع تفتحه.
-          </p>
+          <input
+            value={outgoingLink}
+            onChange={(e) => setOutgoingLink(e.target.value)}
+            dir="ltr"
+            placeholder="📄 ملف الصادر — Google Docs للكتب الصادرة"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+          <input
+            value={accountsLink}
+            onChange={(e) => setAccountsLink(e.target.value)}
+            dir="ltr"
+            placeholder="📊 ملف الحسابات — Google Sheets للحسابات والأسعار"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+          <input
+            value={incomingLink}
+            onChange={(e) => setIncomingLink(e.target.value)}
+            dir="ltr"
+            placeholder="📥 مجلد الواردة — Google Drive لصور الكتب الواردة"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
         </div>
 
         <div>

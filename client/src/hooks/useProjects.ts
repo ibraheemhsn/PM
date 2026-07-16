@@ -63,15 +63,19 @@ export function useAttachmentMutations(projectId?: number) {
 
   return {
     create: useMutation({
-      mutationFn: ({ file, description }: { file: File; description: string }) => {
+      mutationFn: ({
+        file, description, category,
+      }: { file: File; description: string; category: string }) => {
         if (projectId === undefined) throw new Error('projectId مطلوب لرفع مرفق')
-        return api.attachments.create(projectId, file, description)
+        return api.attachments.create(projectId, file, description, category)
       },
       onSuccess: invalidate,
     }),
     update: useMutation({
-      mutationFn: ({ id, description }: { id: number; description: string }) =>
-        api.attachments.update(id, description),
+      mutationFn: ({
+        id, ...data
+      }: { id: number; description?: string; category?: string }) =>
+        api.attachments.update(id, data),
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: api.attachments.remove, onSuccess: invalidate }),

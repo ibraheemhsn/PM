@@ -34,9 +34,15 @@ class Project(models.Model):
     title = models.CharField("العنوان", max_length=200)
     color = models.CharField("اللون", max_length=7, default="#3b82f6")  # HEX color label
     details = models.TextField("التفاصيل الفنية", blank=True, default="")  # HTML من محرر TipTap
-    # رابط مشاركة ملفات المشروع (Drive/OneDrive/مسار شبكة…) — CharField لا URLField
-    # كي يقبل مسارات UNC مثل ‎\\server\share وليس http فقط
+    # روابط ملفات المشروع الخارجية — CharField لا URLField كي تقبل
+    # مسارات UNC مثل ‎\\server\share وليس http فقط
     share_link = models.CharField("رابط الشير", max_length=500, blank=True, default="")
+    # ملف Google Docs تُكتب فيه الكتب الصادرة
+    outgoing_link = models.CharField("رابط ملف الصادر", max_length=500, blank=True, default="")
+    # ملف Google Sheets لحسابات المشروع والأسعار
+    accounts_link = models.CharField("رابط ملف الحسابات", max_length=500, blank=True, default="")
+    # مجلد Google Drive لصور الكتب الواردة
+    incoming_link = models.CharField("رابط مجلد الواردة", max_length=500, blank=True, default="")
 
     # تعديل مقترح من موظف بانتظار مراجعة المدير — النسخة المعتمدة (details)
     # لا تتغير إلا عند الاعتماد
@@ -268,12 +274,25 @@ class Notification(models.Model):
 
 
 class Attachment(models.Model):
-    """مرفق تابع لمشروع: صورة أو PDF أو ملف نصي، مع وصف واسم الرافع."""
+    """مرفق تابع لمشروع: صورة أو PDF أو ملف نصي، مع وصف وتصنيف واسم الرافع."""
+
+    class Category(models.TextChoices):
+        OUTGOING = "OUTGOING", "صادر"
+        INCOMING = "INCOMING", "وارد"
+        ACCOUNTS = "ACCOUNTS", "حسابات"
+        OFFER = "OFFER", "عرض"
+        QUOTATION = "QUOTATION", "Quotation"
+        DATASHEET = "DATASHEET", "Datasheet"
+        MANUAL = "MANUAL", "Manual"
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="attachments", verbose_name="المشروع"
     )
     file_name = models.CharField("اسم الملف", max_length=255)
+    # تصنيف اختياري — أساس الفلترة السريعة في أقسام المرفقات
+    category = models.CharField(
+        "التصنيف", max_length=20, choices=Category.choices, blank=True, default=""
+    )
     file = models.FileField("الملف", upload_to="attachments/%Y/%m/", blank=True, null=True)
     description = models.CharField("الوصف", max_length=500, blank=True, default="")
     uploaded_by = models.ForeignKey(

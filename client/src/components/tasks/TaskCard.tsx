@@ -1,4 +1,5 @@
 import { MessageCircle, Pencil, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, formatDate } from '../../lib/utils'
 import { STATUS_LABELS, type Task, type TaskStatus } from '../../types'
@@ -37,6 +38,14 @@ export function TaskCard({
   const next = canManage ? MANAGER_NEXT[task.status] : EMPLOYEE_NEXT[task.status]
   const isDone = task.status === 'DONE'
 
+  // اكتشاف تجاوز العنوان لسطرين — عندها فقط تُعرض المنبثقة بالعنوان الكامل
+  const titleRef = useRef<HTMLParagraphElement>(null)
+  const [titleClamped, setTitleClamped] = useState(false)
+  useEffect(() => {
+    const el = titleRef.current
+    if (el) setTitleClamped(el.scrollHeight > el.clientHeight + 1)
+  }, [task.title])
+
   return (
     <div
       className={cn(
@@ -62,15 +71,24 @@ export function TaskCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            'truncate text-sm text-slate-800',
-            task.is_unread ? 'font-bold' : 'font-medium',
-            task.status === 'DONE' && 'text-slate-400 line-through',
+        {/* العنوان على سطرين كحد أقصى — وما زاد يظهر كاملاً في منبثقة عند التحويم */}
+        <div className="group/title relative">
+          <p
+            ref={titleRef}
+            className={cn(
+              'line-clamp-2 text-sm leading-snug text-slate-800',
+              task.is_unread ? 'font-bold' : 'font-medium',
+              task.status === 'DONE' && 'text-slate-400 line-through',
+            )}
+          >
+            {task.title}
+          </p>
+          {titleClamped && (
+            <div className="absolute start-0 top-full z-20 mt-1 hidden w-max max-w-xl rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed text-slate-800 shadow-xl group-hover/title:block">
+              {task.title}
+            </div>
           )}
-        >
-          {task.title}
-        </p>
+        </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
           {showProject && (
             <Link
