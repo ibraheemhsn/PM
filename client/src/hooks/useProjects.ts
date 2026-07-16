@@ -14,12 +14,33 @@ export function useTrashedProjects(enabled = true) {
   })
 }
 
+/** الأرشيف — endpoint خاص بالمدير، مرِّر enabled=false لغيره. */
+export function useArchivedProjects(enabled = true) {
+  return useQuery({
+    queryKey: ['projects', 'archive'],
+    queryFn: api.projects.archivedList,
+    enabled,
+  })
+}
+
+/** سجل النشاطات عبر كل المشاريع — لصفحة «سجل النشاطات» المستقلة */
+export function useAllActivity() {
+  return useQuery({
+    queryKey: ['activity'],
+    queryFn: api.activity.listAll,
+    refetchOnMount: 'always', // السجل يتغير مع كل عملية — حدّثه عند كل زيارة
+  })
+}
+
 export function useProjectMutations() {
   const queryClient = useQueryClient()
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['projects'] })
     queryClient.invalidateQueries({ queryKey: ['projects-trash'] })
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    // الأرشفة والاستعادة تؤثران على الخلاصة الموحدة وكل المرفقات أيضاً
+    queryClient.invalidateQueries({ queryKey: ['updates'] })
+    queryClient.invalidateQueries({ queryKey: ['attachments'] })
   }
 
   return {
@@ -32,6 +53,8 @@ export function useProjectMutations() {
     remove: useMutation({ mutationFn: api.projects.remove, onSuccess: invalidate }),
     restore: useMutation({ mutationFn: api.projects.restore, onSuccess: invalidate }),
     purge: useMutation({ mutationFn: api.projects.purge, onSuccess: invalidate }),
+    archive: useMutation({ mutationFn: api.projects.archive, onSuccess: invalidate }),
+    unarchive: useMutation({ mutationFn: api.projects.unarchive, onSuccess: invalidate }),
     // سير مراجعة التفاصيل الفنية: اقتراح (موظف) ← اعتماد أو تراجع (مدير)
     proposeDetails: useMutation({
       mutationFn: ({ id, details }: { id: number; details: string }) =>

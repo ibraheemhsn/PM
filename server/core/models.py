@@ -54,6 +54,12 @@ class Project(models.Model):
     )
     pending_details_at = models.DateTimeField("تاريخ الاقتراح", null=True, blank=True)
 
+    # أرشفة: المشروع المنتهي يُخرج من القوائم اليومية مع بقاء سجله كاملاً
+    # قابلاً للاستعراض والاستعادة من صفحة «الأرشيف»
+    archived_at = models.DateTimeField(
+        "تاريخ الأرشفة", null=True, blank=True, db_index=True
+    )
+
     # حذف ناعم: المشروع يُنقل إلى «المحذوفات» ويبقى قابلاً للاستعادة
     # حتى الحذف النهائي (purge)
     deleted_at = models.DateTimeField(
@@ -239,6 +245,7 @@ class Notification(models.Model):
         TASK_ASSIGNED = "TASK_ASSIGNED", "مهمة مسندة"
         TASK_STATUS = "TASK_STATUS", "تغيير حالة مهمة"
         NEW_COMMENT = "NEW_COMMENT", "تعليق جديد"
+        MENTION = "MENTION", "إشارة في تعليق"
         DETAILS_PROPOSED = "DETAILS_PROPOSED", "تعديل مقترح"
         PROJECT_UPDATE = "PROJECT_UPDATE", "تحديث مشروع"
 
@@ -271,6 +278,29 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"إشعار لـ {self.recipient_id}: {self.message[:40]}"
+
+
+class ActivityLog(models.Model):
+    """سجل نشاط المشروع: من فعل ماذا ومتى — يُكتب من الـ views عند كل
+    عملية مؤثرة (مهام، تحديثات، مرفقات، تفاصيل، أرشفة…) ويُعرض زمنياً."""
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="activities", verbose_name="المشروع"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name="الفاعل",
+    )
+    message = models.CharField("النص", max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]  # الأحدث أولاً
+        verbose_name = "نشاط"
+        verbose_name_plural = "سجل النشاط"
+
+    def __str__(self):
+        return f"نشاط على {self.project_id}: {self.message[:40]}"
 
 
 class Attachment(models.Model):

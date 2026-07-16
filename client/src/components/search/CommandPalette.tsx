@@ -77,7 +77,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
       .slice(0, 6)
 
     const taskHits: SearchResult[] = tasks
-      .filter((t) => findMatch(t.title))
+      .filter((t) => !t.project_archived && findMatch(t.title))
       .slice(0, 8)
       .map((t) => ({
         type: 'task' as const,

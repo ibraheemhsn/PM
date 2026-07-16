@@ -21,6 +21,8 @@ interface RichTextEditorProps {
 export function RichTextEditor({ initialContent, onChange }: RichTextEditorProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  // حارس ثابت عبر الإغلاقات (اللصق/الإفلات يلتقطان أول نسخة من الدوال)
+  const uploadingRef = useRef(false)
 
   const editor = useEditor({
     extensions: [
@@ -39,8 +41,45 @@ export function RichTextEditor({ initialContent, onChange }: RichTextEditorProps
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: { class: 'rich-text min-h-[220px] p-4', dir: 'rtl' },
+      // لصق صورة من الحافظة أو إفلات ملف صورة داخل المحرر → رفع وإدراج فوري
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+          f.type.startsWith('image/'),
+        )
+        if (files.length === 0) return false
+        event.preventDefault()
+        void uploadImages(files)
+        return true
+      },
+      handleDrop: (_view, event) => {
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+          f.type.startsWith('image/'),
+        )
+        if (files.length === 0) return false
+        event.preventDefault()
+        void uploadImages(files)
+        return true
+      },
     },
   })
+
+  /** رفع صور (زر الأدوات أو اللصق أو الإفلات) وإدراجها في موضع المؤشر */
+  const uploadImages = async (files: File[]) => {
+    if (uploadingRef.current) return
+    uploadingRef.current = true
+    setUploadingImage(true)
+    try {
+      for (const file of files) {
+        const { url } = await api.uploads.image(file)
+        editor?.chain().focus().setImage({ src: url, alt: file.name }).run()
+      }
+    } catch {
+      window.alert('تعذر رفع الصورة — تحقق من الاتصال بالخادم ونوع الملف.')
+    } finally {
+      uploadingRef.current = false
+      setUploadingImage(false)
+    }
+  }
 
   if (!editor) return null
 
@@ -55,20 +94,10 @@ export function RichTextEditor({ initialContent, onChange }: RichTextEditorProps
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }
 
-  /** رفع الصورة إلى الخادم ثم إدراجها في موضع المؤشر */
-  const handleImagePick = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImagePick = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file || uploadingImage) return
-    setUploadingImage(true)
-    try {
-      const { url } = await api.uploads.image(file)
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run()
-    } catch {
-      window.alert('تعذر رفع الصورة — تحقق من الاتصال بالخادم ونوع الملف.')
-    } finally {
-      setUploadingImage(false)
-    }
+    if (file) void uploadImages([file])
   }
 
   return (

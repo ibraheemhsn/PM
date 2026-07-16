@@ -34,6 +34,8 @@ export interface Project {
   has_pending_details: boolean
   pending_details_by: UserBrief | null
   pending_details_at: string | null
+  /** غير فارغ = المشروع مؤرشف (خارج القوائم اليومية مع بقاء سجله) */
+  archived_at: string | null
   /** غير فارغ = المشروع في سلة المحذوفات */
   deleted_at: string | null
   tasks_count: number
@@ -48,6 +50,8 @@ export interface Task {
   project: number
   project_title: string
   project_color: string
+  /** مشروع المهمة مؤرشف — تُستبعد من القوائم العامة */
+  project_archived: boolean
   title: string
   status: TaskStatus
   color: string
@@ -79,6 +83,8 @@ export interface ProjectUpdate {
   project: number
   project_title: string
   project_color: string
+  /** مشروع التحديث مؤرشف — يُستبعد من الخلاصة الموحدة */
+  project_archived: boolean
   author: UserBrief | null
   body: string
   /** أحدث من آخر اطلاع للمستخدم على تحديثات المشروع وليس من كتابته */
@@ -136,10 +142,27 @@ export interface Tag {
   name: string
 }
 
+/** حدث في سجل النشاطات: من فعل ماذا وفي أي مشروع ومتى */
+export interface ActivityEntry {
+  id: number
+  project: number
+  project_title: string
+  project_color: string
+  actor: UserBrief | null
+  message: string
+  created_at: string
+}
+
 /** إشعار داخل التطبيق — يُعرض في جرس الشريط الجانبي وكإشعار متصفح مع صوت */
 export interface AppNotification {
   id: number
-  kind: 'TASK_ASSIGNED' | 'TASK_STATUS' | 'NEW_COMMENT' | 'DETAILS_PROPOSED' | 'PROJECT_UPDATE'
+  kind:
+    | 'TASK_ASSIGNED'
+    | 'TASK_STATUS'
+    | 'NEW_COMMENT'
+    | 'MENTION'
+    | 'DETAILS_PROPOSED'
+    | 'PROJECT_UPDATE'
   message: string
   actor: UserBrief | null
   task: number | null

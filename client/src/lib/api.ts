@@ -3,8 +3,8 @@
  *  - المصادقة عبر جلسات Django: نرفق ترويسة X-CSRFToken من الكعكة
  *    (تُزرع عند نداء /auth/me/ أول مرة) مع كل طلب غير GET. */
 import type {
-  AppNotification, Attachment, Project, ProjectUpdate, Tag, Task, TaskComment,
-  TaskStatus, User,
+  ActivityEntry, AppNotification, Attachment, Project, ProjectUpdate, Tag,
+  Task, TaskComment, TaskStatus, User, UserBrief,
 } from '../types'
 
 export interface ProjectInput {
@@ -78,6 +78,8 @@ export const api = {
   },
   users: {
     list: () => request<User[]>('/users/'),
+    /** كل المستخدمين النشطين — لإكمال المنشن (@) في التعليقات، متاحة للجميع */
+    mentionable: () => request<UserBrief[]>('/users/mentionable/'),
     // FormData عند رفع صورة، وJSON عند اختيار أيقونة جاهزة
     create: (data: UserInput | FormData) =>
       request<User>('/users/', {
@@ -101,6 +103,11 @@ export const api = {
     remove: (id: number) => request<void>(`/projects/${id}/`, { method: 'DELETE' }),
     trashList: () => request<Project[]>('/projects/?trashed=1'),
     restore: (id: number) => request<Project>(`/projects/${id}/restore/`, { method: 'POST' }),
+    /** الأرشيف: مشاريع منتهية خارج القوائم اليومية مع بقاء سجلها */
+    archivedList: () => request<Project[]>('/projects/?archived=1'),
+    archive: (id: number) => request<Project>(`/projects/${id}/archive/`, { method: 'POST' }),
+    unarchive: (id: number) =>
+      request<Project>(`/projects/${id}/unarchive/`, { method: 'POST' }),
     /** حذف نهائي لا رجعة فيه */
     purge: (id: number) => request<void>(`/projects/${id}/purge/`, { method: 'DELETE' }),
     // سير مراجعة التفاصيل الفنية: اقتراح (موظف) ← اعتماد أو تراجع (مدير)
@@ -181,6 +188,10 @@ export const api = {
   },
   tags: {
     list: () => request<Tag[]>('/tags/'),
+  },
+  activity: {
+    /** سجل النشاطات عبر كل المشاريع: آخر 300 حدث، الأحدث أولاً */
+    listAll: () => request<ActivityEntry[]>('/activity/?limit=300'),
   },
   notifications: {
     /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */

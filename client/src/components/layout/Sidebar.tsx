@@ -1,4 +1,7 @@
-import { ListTodo, LogOut, Paperclip, Pencil, Plus, Search, Trash2, Users } from 'lucide-react'
+import {
+  Archive, History, LayoutDashboard, ListTodo, LogOut, MoreVertical, Paperclip,
+  Pencil, Plus, Search, Trash2, Users,
+} from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, useMatch, useNavigate } from 'react-router-dom'
 import { useAuthMutations, useMe } from '../../hooks/useAuth'
@@ -19,6 +22,13 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800',
   )
 
+/** روابط قائمة الأدوات المنبثقة (النشاطات/المرفقات/الأرشيف/المحذوفات) */
+const toolsLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    'flex items-center gap-2 px-3 py-2 text-sm',
+    isActive ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/60',
+  )
+
 export function Sidebar({ onOpenSearch }: SidebarProps) {
   const { data: me } = useMe()
   const { logout } = useAuthMutations()
@@ -29,6 +39,8 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
 
   // null = مغلق، 'new' = إنشاء، وإلا فهو المشروع الجاري تعديله
   const [editing, setEditing] = useState<Project | 'new' | null>(null)
+  // قائمة الأدوات المنبثقة أسفل الشريط الجانبي
+  const [toolsOpen, setToolsOpen] = useState(false)
 
   if (!me) return null
   const isManager = me.is_manager
@@ -65,6 +77,12 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
 
       {/* التنقل الرئيسي */}
       <nav className="space-y-0.5 px-3 pt-3">
+        {isManager && (
+          <NavLink to="/dashboard" className={navLinkClass}>
+            <LayoutDashboard size={17} />
+            لوحة الإحصائيات
+          </NavLink>
+        )}
         <NavLink to="/tasks" className={navLinkClass}>
           <ListTodo size={17} />
           {isManager ? 'جميع المهام' : 'مهامي'}
@@ -151,59 +169,26 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
         ))}
       </ul>
 
-      {/* كل المرفقات + سلة المحذوفات (للمدير فقط) */}
-      {isManager && (
-        <nav className="space-y-0.5 border-t border-slate-800 px-3 py-2">
-          <NavLink
-            to="/attachments"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                isActive ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800',
-              )
-            }
-          >
-            <Paperclip size={16} />
-            كل المرفقات
-          </NavLink>
-          <NavLink
-            to="/trash"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                isActive ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800',
-              )
-            }
-          >
-            <Trash2 size={16} />
-            المحذوفات
-          </NavLink>
-        </nav>
-      )}
-
-      {/* المستخدم الحالي + إدارة الموظفين + تسجيل الخروج */}
-      <div className="flex items-center gap-2.5 border-t border-slate-800 px-4 py-3">
+      {/* المستخدم الحالي + إدارة الموظفين + قائمة الأدوات + تسجيل الخروج */}
+      <div className="relative flex items-center gap-2.5 border-t border-slate-800 px-4 py-3">
         <Avatar user={me} size={34} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-white">{displayName(me)}</p>
           <p className="text-[11px] text-slate-500">{isManager ? 'مدير' : 'موظف'}</p>
         </div>
-        {isManager && (
-          <NavLink
-            to="/employees"
-            title="الموظفون"
-            className={({ isActive }) =>
-              cn(
-                'rounded-lg p-1.5',
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-blue-400',
-              )
-            }
-          >
-            <Users size={16} />
-          </NavLink>
-        )}
+        {/* قائمة الأدوات: الموظفون + النشاطات + المرفقات + الأرشيف + المحذوفات */}
+        <button
+          onClick={() => setToolsOpen((v) => !v)}
+          title="المزيد"
+          className={cn(
+            'rounded-lg p-1.5',
+            toolsOpen
+              ? 'bg-slate-800 text-white'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-blue-400',
+          )}
+        >
+          <MoreVertical size={16} />
+        </button>
         <button
           onClick={() => logout.mutate()}
           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-red-400"
@@ -211,6 +196,57 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
         >
           <LogOut size={16} />
         </button>
+
+        {toolsOpen && (
+          <>
+            {/* طبقة شفافة للإغلاق عند النقر خارج القائمة */}
+            <div className="fixed inset-0 z-40" onMouseDown={() => setToolsOpen(false)} />
+            <div className="absolute bottom-full end-4 z-50 mb-2 w-48 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 py-1 shadow-2xl">
+              {isManager && (
+                <NavLink
+                  to="/employees"
+                  onClick={() => setToolsOpen(false)}
+                  className={toolsLinkClass}
+                >
+                  <Users size={16} />
+                  الموظفون
+                </NavLink>
+              )}
+              <NavLink to="/activity" onClick={() => setToolsOpen(false)} className={toolsLinkClass}>
+                <History size={16} />
+                سجل النشاطات
+              </NavLink>
+              {isManager && (
+                <>
+                  <NavLink
+                    to="/attachments"
+                    onClick={() => setToolsOpen(false)}
+                    className={toolsLinkClass}
+                  >
+                    <Paperclip size={16} />
+                    كل المرفقات
+                  </NavLink>
+                  <NavLink
+                    to="/archive"
+                    onClick={() => setToolsOpen(false)}
+                    className={toolsLinkClass}
+                  >
+                    <Archive size={16} />
+                    الأرشيف
+                  </NavLink>
+                  <NavLink
+                    to="/trash"
+                    onClick={() => setToolsOpen(false)}
+                    className={toolsLinkClass}
+                  >
+                    <Trash2 size={16} />
+                    المحذوفات
+                  </NavLink>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {editing && (

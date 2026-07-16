@@ -72,6 +72,7 @@ export function AllTasksPage() {
   const visibleTasks = useMemo(() => {
     const query = filters.query.trim().toLowerCase()
     return tasks
+      .filter((t) => !t.project_archived) // مهام المشاريع المؤرشفة خارج القوائم اليومية
       .filter((t) => filters.project === 'all' || t.project === filters.project)
       .filter((t) => filters.status === 'all' || t.status === filters.status)
       .filter(
@@ -91,6 +92,7 @@ export function AllTasksPage() {
   const visibleUpdates = useMemo(() => {
     const query = filters.query.trim().toLowerCase()
     return updates
+      .filter((u) => !u.project_archived) // تحديثات المشاريع المؤرشفة خارج الخلاصة
       .filter((u) => filters.project === 'all' || u.project === filters.project)
       .filter((u) => !query || u.body.toLowerCase().includes(query))
   }, [updates, filters.project, filters.query])

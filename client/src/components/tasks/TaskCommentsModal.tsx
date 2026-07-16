@@ -1,17 +1,96 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Send } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import {
+  useEffect, useRef, useState, type ChangeEvent, type FormEvent,
+  type KeyboardEvent, type ReactNode,
+} from 'react'
 import { useCommentMutations, useTaskComments } from '../../hooks/useTasks'
+import { useMentionableUsers } from '../../hooks/useUsers'
 import { cn, formatDate } from '../../lib/utils'
-import { displayName, type Task } from '../../types'
+import { displayName, type Task, type UserBrief } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
 
+/** تمييز المنشن (@username) بالأزرق داخل نص التعليق */
+function renderBody(text: string): ReactNode[] {
+  return text.split(/(@[\w.@+-]+)/g).map((part, index) =>
+    part.startsWith('@') ? (
+      <span key={index} className="font-medium text-blue-600">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  )
+}
+
 export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const { data: comments = [], isLoading, isFetching } = useTaskComments(task.id)
+  const { data: mentionable = [] } = useMentionableUsers()
   const { create } = useCommentMutations(task.id)
   const [body, setBody] = useState('')
   const queryClient = useQueryClient()
+
+  // إكمال المنشن: mentionQuery = ما كُتب بعد @ قبل المؤشر (null = مغلق)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [activeSuggestion, setActiveSuggestion] = useState(0)
+
+  const suggestions =
+    mentionQuery === null
+      ? []
+      : mentionable
+          .filter((u) => {
+            const q = mentionQuery.toLowerCase()
+            return (
+              u.username.toLowerCase().includes(q) ||
+              displayName(u).toLowerCase().includes(q)
+            )
+          })
+          .slice(0, 5)
+  const mentionOpen = suggestions.length > 0
+
+  const updateMentionQuery = (value: string, caret: number) => {
+    const beforeCaret = value.slice(0, caret)
+    const match = /(?:^|\s)@([\w.@+-]*)$/.exec(beforeCaret)
+    setMentionQuery(match ? match[1] : null)
+    setActiveSuggestion(0)
+  }
+
+  const handleBodyChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setBody(e.target.value)
+    updateMentionQuery(e.target.value, e.target.selectionStart)
+  }
+
+  const insertMention = (user: UserBrief) => {
+    const el = textareaRef.current
+    const caret = el?.selectionStart ?? body.length
+    const beforeCaret = body.slice(0, caret).replace(/@[\w.@+-]*$/, `@${user.username} `)
+    setBody(beforeCaret + body.slice(caret))
+    setMentionQuery(null)
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(beforeCaret.length, beforeCaret.length)
+    })
+  }
+
+  const handleBodyKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!mentionOpen) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveSuggestion((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      insertMention(suggestions[activeSuggestion])
+    } else if (e.key === 'Escape') {
+      // أغلق قائمة المنشن فقط — لا النافذة كلها
+      e.stopPropagation()
+      setMentionQuery(null)
+    }
+  }
 
   // بعد جلب التعليقات يكون الخادم قد حدّث «آخر اطلاع» — حدّث قائمة المهام
   // (نقطة أيقونة التعليقات) وقائمة المشاريع (النقطة الحمراء في الشريط الجانبي)
@@ -68,7 +147,7 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
                   comment.is_unread && 'font-bold',
                 )}
               >
-                {comment.body}
+                {renderBody(comment.body)}
               </p>
             </div>
           </div>
@@ -76,13 +155,46 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
       </div>
 
       <form onSubmit={handleSubmit} className="mt-4 flex items-end gap-2">
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={2}
-          placeholder="اكتب تعليقاً…"
-          className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-        />
+        <div className="relative flex-1">
+          <textarea
+            ref={textareaRef}
+            value={body}
+            onChange={handleBodyChange}
+            onKeyDown={handleBodyKeyDown}
+            rows={2}
+            placeholder="اكتب تعليقاً… استخدم @ للإشارة إلى زميل"
+            className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+          />
+          {/* قائمة إكمال المنشن — تظهر فوق حقل الكتابة */}
+          {mentionOpen && (
+            <div className="absolute bottom-full start-0 z-20 mb-1 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+              {suggestions.map((user, index) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  // mousedown كي لا يفقد الحقل التركيز قبل الإدراج
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    insertMention(user)
+                  }}
+                  onMouseMove={() => setActiveSuggestion(index)}
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm',
+                    index === activeSuggestion ? 'bg-blue-50' : 'hover:bg-slate-50',
+                  )}
+                >
+                  <Avatar user={user} size={22} />
+                  <span className="min-w-0 flex-1 truncate text-slate-700">
+                    {displayName(user)}
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-400" dir="ltr">
+                    @{user.username}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           type="submit"
           disabled={!body.trim() || create.isPending}

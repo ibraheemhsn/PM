@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, FileText, Paperclip, Pencil, Trash2, Upload, X } from 'lucide-react'
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useAttachmentMutations, useAttachments } from '../../hooks/useProjects'
 import { cn, formatDate, formatFileSize, isImageFile } from '../../lib/utils'
@@ -24,7 +24,11 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   // القسم مطوي افتراضياً — كالتفاصيل الفنية: النقر على الكرت يفتحه
   const [expanded, setExpanded] = useState(false)
-  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  // طابور الرفع: يدعم اختيار/إفلات عدة ملفات — يُرفع أولها ثم التالي
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const pendingFile = pendingFiles[0] ?? null
+  const [dragging, setDragging] = useState(false)
+  const dragCounter = useRef(0)
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<AttachmentCategory | 'all'>('all')
@@ -45,15 +49,44 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
   const canModify = (attachment: Attachment) =>
     isManager || attachment.uploaded_by?.id === me?.id
 
+  const queueFiles = (files: File[]) => {
+    setPendingFiles(files)
+    setDescription('')
+    setCategory('')
+    setError('')
+    setExpanded(true)
+  }
+
   const handleFilePick = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (file) {
-      setPendingFile(file)
-      setDescription('')
-      setCategory('')
-      setError('')
+    if (files.length > 0) queueFiles(files)
+  }
+
+  // سحب وإفلات الملفات على الكرت كله — عدّاد الدخول/الخروج يمنع وميض
+  // المؤشر عند المرور فوق العناصر الداخلية
+  const handleDragEnter = (e: DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    dragCounter.current += 1
+    setDragging(true)
+  }
+  const handleDragOver = (e: DragEvent) => {
+    if (e.dataTransfer.types.includes('Files')) e.preventDefault()
+  }
+  const handleDragLeave = () => {
+    dragCounter.current -= 1
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0
+      setDragging(false)
     }
+  }
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault()
+    dragCounter.current = 0
+    setDragging(false)
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) queueFiles(files)
   }
 
   const submitUpload = () => {
@@ -63,7 +96,8 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
       { file: pendingFile, description: description.trim(), category },
       {
         onSuccess: () => {
-          setPendingFile(null)
+          // انتقل للملف التالي في الطابور إن وُجد
+          setPendingFiles((prev) => prev.slice(1))
           setDescription('')
           setCategory('')
         },
@@ -103,11 +137,21 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
       onClick={() => {
         if (!expanded) setExpanded(true)
       }}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       className={cn(
-        'rounded-xl border border-slate-200/70 bg-white p-4 transition-shadow duration-200',
+        'relative rounded-xl border border-slate-200/70 bg-white p-4 transition-shadow duration-200',
         !expanded && 'cursor-pointer hover:shadow-lg hover:shadow-slate-200/80',
       )}
     >
+      {/* مؤشر الإفلات أثناء سحب ملفات فوق الكرت */}
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/90 text-sm font-bold text-blue-600">
+          أفلت الملفات هنا لرفعها
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-bold text-slate-700">
           المرفقات{' '}
@@ -123,6 +167,7 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           accept={ACCEPTED_TYPES}
           onChange={handleFilePick}
           className="hidden"
@@ -184,10 +229,15 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
             <span className="shrink-0 text-xs text-slate-400">
               ({formatFileSize(pendingFile.size)})
             </span>
+            {pendingFiles.length > 1 && (
+              <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                +{pendingFiles.length - 1} في الانتظار
+              </span>
+            )}
             <button
-              onClick={() => setPendingFile(null)}
+              onClick={() => setPendingFiles([])}
               className="ms-auto rounded p-1 text-slate-400 hover:bg-white hover:text-slate-600"
-              title="إلغاء"
+              title="إلغاء الكل"
             >
               <X size={15} />
             </button>

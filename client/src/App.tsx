@@ -2,7 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from './components/auth/LoginPage'
 import { EmployeesPage } from './components/employees/EmployeesPage'
 import { AppLayout } from './components/layout/AppLayout'
+import { ActivityPage } from './components/activity/ActivityPage'
+import { DashboardPage } from './components/dashboard/DashboardPage'
 import { NotificationsPage } from './components/notifications/NotificationsPage'
+import { ArchivePage } from './components/projects/ArchivePage'
 import { AttachmentsPage } from './components/projects/AttachmentsPage'
 import { ProjectPage } from './components/projects/ProjectPage'
 import { TrashPage } from './components/projects/TrashPage'
@@ -24,14 +27,27 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/tasks" replace />} />
+        {/* الصفحة الرئيسية: لوحة الإحصائيات للمدير، والمهام للموظف */}
+        <Route
+          index
+          element={<Navigate to={me.is_manager ? '/dashboard' : '/tasks'} replace />}
+        />
+        <Route
+          path="/dashboard"
+          element={me.is_manager ? <DashboardPage /> : <Navigate to="/tasks" replace />}
+        />
         <Route path="/tasks" element={<AllTasksPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />
         <Route path="/attachments" element={<AttachmentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/activity" element={<ActivityPage />} />
         <Route
           path="/employees"
           element={me.is_manager ? <EmployeesPage /> : <Navigate to="/tasks" replace />}
+        />
+        <Route
+          path="/archive"
+          element={me.is_manager ? <ArchivePage /> : <Navigate to="/tasks" replace />}
         />
         <Route
           path="/trash"

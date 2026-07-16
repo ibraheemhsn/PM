@@ -10,7 +10,8 @@ from pathlib import Path
 from rest_framework import serializers
 
 from .models import (
-    Attachment, Notification, Project, ProjectUpdate, Tag, Task, TaskComment, User,
+    ActivityLog, Attachment, Notification, Project, ProjectUpdate, Tag, Task,
+    TaskComment, User,
 )
 
 # أنواع المرفقات المسموحة: صور وPDF وملفات نصية
@@ -71,11 +72,13 @@ class ProjectSerializer(serializers.ModelSerializer):
             "id", "title", "color", "details",
             "share_link", "outgoing_link", "accounts_link", "incoming_link",
             "pending_details", "has_pending_details", "pending_details_by", "pending_details_at",
-            "deleted_at", "tasks_count", "has_unread", "created_at", "updated_at",
+            "archived_at", "deleted_at", "tasks_count", "has_unread",
+            "created_at", "updated_at",
         ]
-        # حقول المراجعة والحذف الناعم تُدار حصراً عبر الإجراءات المخصصة
+        # حقول المراجعة والأرشفة والحذف الناعم تُدار حصراً عبر الإجراءات المخصصة
         read_only_fields = [
-            "pending_details", "has_pending_details", "pending_details_at", "deleted_at",
+            "pending_details", "has_pending_details", "pending_details_at",
+            "archived_at", "deleted_at",
         ]
 
     def get_has_unread(self, obj) -> bool:
@@ -103,13 +106,15 @@ class TaskSerializer(serializers.ModelSerializer):
     comments_count = serializers.IntegerField(source="comments.count", read_only=True)
     has_unread_comments = serializers.SerializerMethodField()
     is_unread = serializers.SerializerMethodField()
+    # مهام المشاريع المؤرشفة تُستبعد من القوائم العامة في الواجهة
+    project_archived = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = [
-            "id", "project", "project_title", "project_color", "title", "status",
-            "color", "tags", "assignees", "comments_count", "has_unread_comments",
-            "is_unread", "deleted_at", "created_at", "updated_at",
+            "id", "project", "project_title", "project_color", "project_archived",
+            "title", "status", "color", "tags", "assignees", "comments_count",
+            "has_unread_comments", "is_unread", "deleted_at", "created_at", "updated_at",
         ]
         # الحذف الناعم يُدار حصراً عبر destroy/restore/purge
         read_only_fields = ["deleted_at"]
@@ -122,6 +127,9 @@ class TaskSerializer(serializers.ModelSerializer):
         # «غير مقروءة» = لم يطّلع عليها المستخدم بعد (لا سجل TaskSeen له)
         seen_ids = self.context.get("seen_task_ids")
         return seen_ids is not None and obj.id not in seen_ids
+
+    def get_project_archived(self, obj) -> bool:
+        return obj.project.archived_at is not None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -175,11 +183,12 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
     project_title = serializers.CharField(source="project.title", read_only=True)
     project_color = serializers.CharField(source="project.color", read_only=True)
     is_unread = serializers.SerializerMethodField()
+    project_archived = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectUpdate
         fields = [
-            "id", "project", "project_title", "project_color",
+            "id", "project", "project_title", "project_color", "project_archived",
             "author", "body", "is_unread", "deleted_at", "created_at", "updated_at",
         ]
         # الحذف الناعم يُدار حصراً عبر destroy/restore/purge
@@ -193,6 +202,23 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
             return False
         last_seen = seen_map.get(obj.project_id)
         return last_seen is None or obj.created_at > last_seen
+
+    def get_project_archived(self, obj) -> bool:
+        return obj.project.archived_at is not None
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    actor = UserBriefSerializer(read_only=True)
+    # لعرض شارة المشروع في صفحة «سجل النشاطات» الموحدة
+    project_title = serializers.CharField(source="project.title", read_only=True)
+    project_color = serializers.CharField(source="project.color", read_only=True)
+
+    class Meta:
+        model = ActivityLog
+        fields = [
+            "id", "project", "project_title", "project_color",
+            "actor", "message", "created_at",
+        ]
 
     def update(self, instance, validated_data):
         validated_data.pop("project", None)  # لا يُنقل التحديث بين المشاريع

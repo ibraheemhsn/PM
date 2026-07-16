@@ -6,6 +6,15 @@ export function useUsers(enabled = true) {
   return useQuery({ queryKey: ['users'], queryFn: api.users.list, enabled })
 }
 
+/** المستخدمون القابلون للمنشن (@) في التعليقات — متاحة للجميع */
+export function useMentionableUsers() {
+  return useQuery({
+    queryKey: ['users', 'mentionable'],
+    queryFn: api.users.mentionable,
+    staleTime: 5 * 60_000, // قائمة شبه ثابتة — لا داعي لإعادة جلب متكررة
+  })
+}
+
 export function useUserMutations() {
   const queryClient = useQueryClient()
   const invalidate = () => {

@@ -19,16 +19,17 @@ export function Modal({ title, onClose, children }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 p-4 pt-24"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 p-4 pt-16"
       onMouseDown={onClose}
     >
       <div
         // text-slate-800 يعيد ضبط لون النص — النافذة قد تُستدعى من داخل
-        // الشريط الجانبي الداكن فترث نصه الفاتح
-        className="w-full max-w-lg rounded-xl bg-white text-slate-800 shadow-xl"
+        // الشريط الجانبي الداكن فترث نصه الفاتح.
+        // max-h + عمود مرن: المحتوى الطويل يتمرر داخلياً بدل أن يُقص أسفل الشاشة
+        className="flex max-h-full w-full max-w-lg flex-col rounded-xl bg-white text-slate-800 shadow-xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5">
           <h2 className="font-bold text-slate-800">{title}</h2>
           <button
             onClick={onClose}
@@ -38,7 +39,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
             <X size={18} />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="overflow-y-auto p-5">{children}</div>
       </div>
     </div>
   )

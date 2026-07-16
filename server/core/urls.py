@@ -2,9 +2,9 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    AttachmentViewSet, DetailsImageUploadView, GlobalSearchView, LoginView,
-    LogoutView, MeView, NotificationViewSet, ProjectUpdateViewSet,
-    ProjectViewSet, TagViewSet, TaskViewSet, UserViewSet,
+    ActivityLogViewSet, AttachmentViewSet, DetailsImageUploadView,
+    GlobalSearchView, LoginView, LogoutView, MeView, NotificationViewSet,
+    ProjectUpdateViewSet, ProjectViewSet, TagViewSet, TaskViewSet, UserViewSet,
 )
 
 router = DefaultRouter()
@@ -15,6 +15,7 @@ router.register("tasks", TaskViewSet, basename="task")
 router.register("tags", TagViewSet, basename="tag")
 router.register("users", UserViewSet, basename="user")
 router.register("notifications", NotificationViewSet, basename="notification")
+router.register("activity", ActivityLogViewSet, basename="activity")
 
 urlpatterns = [
     path("auth/me/", MeView.as_view(), name="auth-me"),

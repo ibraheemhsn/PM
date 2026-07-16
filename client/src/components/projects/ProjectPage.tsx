@@ -1,11 +1,11 @@
 import {
-  Check, ChevronDown, ChevronUp, Eye, FileOutput, FileSpreadsheet, Folder,
-  FolderDown, Pencil, Plus, Save, Trash2, Undo2,
+  Archive, ArchiveRestore, Check, ChevronDown, ChevronUp, Eye, FileOutput,
+  FileSpreadsheet, Folder, FolderDown, Pencil, Plus, Save, Trash2, Undo2,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
-import { useProjectMutations, useProjects } from '../../hooks/useProjects'
+import { useArchivedProjects, useProjectMutations, useProjects } from '../../hooks/useProjects'
 import { useMarkTasksSeen, useTaskMutations, useTasks } from '../../hooks/useTasks'
 import { cn, externalHref, formatDate, stripHtml } from '../../lib/utils'
 import { displayName, type Project, type Task } from '../../types'
@@ -29,6 +29,9 @@ export function ProjectPage() {
   const isManager = !!me?.is_manager
 
   const { data: projects = [], isLoading, isError } = useProjects()
+  // المشروع المؤرشف لا يرد في القائمة الافتراضية — يُبحث عنه في الأرشيف أيضاً
+  // (endpoint الأرشيف للمدير فقط)
+  const { data: archivedProjects = [] } = useArchivedProjects(isManager)
   const { data: tasks = [], isLoading: tasksLoading } = useTasks()
   const projectMutations = useProjectMutations()
   const taskMutations = useTaskMutations()
@@ -37,7 +40,9 @@ export function ProjectPage() {
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
   const [commentsTask, setCommentsTask] = useState<Task | null>(null)
 
-  const project = projects.find((p) => p.id === Number(projectId))
+  const project =
+    projects.find((p) => p.id === Number(projectId)) ??
+    archivedProjects.find((p) => p.id === Number(projectId))
   const projectTasks = tasks.filter((t) => t.project === Number(projectId))
 
   // مهام المشروع المعروضة تُعلَّم مقروءةً (تُميَّز صفراء حتى المغادرة)
@@ -71,6 +76,12 @@ export function ProjectPage() {
     if (!confirm(`نقل مشروع «${project.title}» إلى المحذوفات؟ يمكنك استعادته أو حذفه نهائياً من هناك.`))
       return
     projectMutations.remove.mutate(project.id, { onSuccess: () => navigate('/tasks') })
+  }
+
+  const handleArchiveProject = () => {
+    if (!confirm(`أرشفة مشروع «${project.title}»؟ يخرج من القوائم اليومية ويبقى سجله كاملاً في «الأرشيف».`))
+      return
+    projectMutations.archive.mutate(project.id)
   }
 
   const handleDeleteTask = (task: Task) => {
@@ -141,6 +152,15 @@ export function ProjectPage() {
               >
                 <Pencil size={17} />
               </button>
+              {!project.archived_at && (
+                <button
+                  onClick={handleArchiveProject}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-amber-600"
+                  title="أرشفة المشروع (منتهٍ — يخرج من القوائم اليومية)"
+                >
+                  <Archive size={17} />
+                </button>
+              )}
               <button
                 onClick={handleDeleteProject}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-red-600"
@@ -154,6 +174,27 @@ export function ProjectPage() {
         <p className="mt-1 text-xs text-slate-400">
           أُنشئ في {formatDate(project.created_at)} · آخر تحديث {formatDate(project.updated_at)}
         </p>
+
+        {/* شريط الحالة عند كون المشروع مؤرشفاً */}
+        {project.archived_at && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <Archive size={14} className="shrink-0" />
+            <span className="min-w-0 flex-1">
+              مشروع مؤرشف منذ {formatDate(project.archived_at)} — لا يظهر في القوائم اليومية
+              وسجله محفوظ كاملاً.
+            </span>
+            {isManager && (
+              <button
+                onClick={() => projectMutations.unarchive.mutate(project.id)}
+                disabled={projectMutations.unarchive.isPending}
+                className="flex items-center gap-1 rounded-md border border-amber-300 px-2 py-1 font-medium hover:bg-amber-100 disabled:opacity-50"
+              >
+                <ArchiveRestore size={13} />
+                إعادة من الأرشيف
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       {/* التفاصيل الفنية — key يعيد ضبط وضع التحرير عند تبديل المشروع.
