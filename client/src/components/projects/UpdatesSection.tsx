@@ -1,16 +1,16 @@
-import { ChevronDown, ChevronUp, Pencil, Plus, Send, Trash2 } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useProjectUpdateMutations, useProjectUpdates } from '../../hooks/useProjects'
-import { formatDate } from '../../lib/utils'
+import { cn, formatDate } from '../../lib/utils'
 import { displayName, type ProjectUpdate } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
 
-/** عدد التحديثات الظاهرة افتراضياً (الأحدث في الأسفل، والأقدم مخفية) */
-const DEFAULT_VISIBLE = 2
-
 /** سجل تحديثات المشروع: أحداث وإجراءات (توقيع عقد، إرسال كتاب، تنصيب محطة…).
+ *  قسم فرعي داخل «التفاصيل الفنية» يظهر بعد «عرض المزيد» — لذا تُعرض
+ *  كل التحديثات مباشرة دون طي إضافي.
  *  الكل يضيف؛ وكل كاتب يعدّل/يحذف تحديثاته فقط، والمدير يدير الجميع. */
 export function UpdatesSection({ projectId }: { projectId: number }) {
   const { data: me } = useMe()
@@ -18,16 +18,19 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
 
   const { data: updates = [], isLoading } = useProjectUpdates(projectId)
   const { create, update, remove } = useProjectUpdateMutations(projectId)
+  const queryClient = useQueryClient()
 
-  const [showAll, setShowAll] = useState(false)
+  // جلب تحديثات المشروع يعلّمها مقروءةً على الخادم — حدّث النقطة الحمراء
+  // في الشريط الجانبي، ويبقى التمييز الأصفر ظاهراً حتى مغادرة الصفحة
+  const hasUnread = updates.some((u) => u.is_unread)
+  useEffect(() => {
+    if (hasUnread) queryClient.invalidateQueries({ queryKey: ['projects'] })
+  }, [hasUnread, queryClient])
+
   const [adding, setAdding] = useState(false)
   const [body, setBody] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editBody, setEditBody] = useState('')
-
-  // القائمة تصل مرتبة من الأقدم إلى الأحدث — نعرض آخر اثنين افتراضياً
-  const visible = showAll ? updates : updates.slice(-DEFAULT_VISIBLE)
-  const hiddenCount = updates.length - visible.length
 
   const canModify = (item: ProjectUpdate) => isManager || item.author?.id === me?.id
   const wasEdited = (item: ProjectUpdate) =>
@@ -57,7 +60,8 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
   }
 
   const handleDelete = (item: ProjectUpdate) => {
-    if (!confirm('حذف هذا التحديث؟')) return
+    if (!confirm('نقل هذا التحديث إلى المحذوفات؟ يستطيع المدير استعادته أو حذفه نهائياً من هناك.'))
+      return
     remove.mutate(item.id)
   }
 
@@ -76,26 +80,6 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
         </button>
       </div>
 
-      {/* إظهار/إخفاء التحديثات القديمة */}
-      {hiddenCount > 0 && (
-        <button
-          onClick={() => setShowAll(true)}
-          className="mb-2 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-        >
-          <ChevronUp size={15} />
-          عرض جميع التحديثات ({updates.length})
-        </button>
-      )}
-      {showAll && updates.length > DEFAULT_VISIBLE && (
-        <button
-          onClick={() => setShowAll(false)}
-          className="mb-2 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-        >
-          <ChevronDown size={15} />
-          إخفاء التحديثات القديمة
-        </button>
-      )}
-
       <div className="space-y-3">
         {isLoading && <p className="py-2 text-sm text-slate-400">جارٍ التحميل…</p>}
         {!isLoading && updates.length === 0 && (
@@ -104,7 +88,7 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
           </p>
         )}
 
-        {visible.map((item) => (
+        {updates.map((item) => (
           <div key={item.id} className="group flex gap-2">
             {item.author ? (
               <Avatar user={item.author} size={30} />
@@ -114,9 +98,16 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
               </span>
             )}
 
-            <div className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div
+              className={cn(
+                'min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2',
+                // تحديث لم يقرأه المستخدم بعد — خلفية صفراء فاتحة
+                item.is_unread ? 'bg-yellow-50' : 'bg-white',
+              )}
+            >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="text-xs font-bold text-slate-700">
+                {/* اسم الكاتب خفيف — المهم فحوى التحديث لا كاتبه */}
+                <span className="text-xs text-slate-400">
                   {item.author ? displayName(item.author) : 'مستخدم محذوف'}
                 </span>
                 <span className="text-[10px] text-slate-400">
@@ -176,7 +167,14 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
                   </div>
                 </div>
               ) : (
-                <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-700">{item.body}</p>
+                <p
+                  className={cn(
+                    'mt-0.5 whitespace-pre-wrap text-sm text-slate-700',
+                    item.is_unread && 'font-bold',
+                  )}
+                >
+                  {item.body}
+                </p>
               )}
             </div>
           </div>

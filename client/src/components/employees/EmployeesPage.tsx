@@ -28,7 +28,7 @@ export function EmployeesPage() {
     )
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-900">
           الموظفون <span className="text-sm font-normal text-slate-400">({users.length})</span>

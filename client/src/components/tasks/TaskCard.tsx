@@ -35,11 +35,18 @@ export function TaskCard({
   task, showProject, canManage, onEdit, onDelete, onOpenComments, onStatusChange,
 }: TaskCardProps) {
   const next = canManage ? MANAGER_NEXT[task.status] : EMPLOYEE_NEXT[task.status]
+  const isDone = task.status === 'DONE'
 
   return (
     <div
-      className="group flex items-center gap-3 rounded-xl border border-slate-200 border-s-4 bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow"
-      style={{ borderInlineStartColor: task.color || '#e2e8f0' }}
+      className={cn(
+        'group flex items-center gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm transition hover:shadow',
+        // مهمة لم يطّلع عليها المستخدم بعد — خلفية صفراء فاتحة تميزها
+        task.is_unread ? 'bg-yellow-50' : isDone ? 'bg-slate-50' : 'bg-white',
+        // المهمة المنجزة باهتة كي لا تشد الانتباه — وتتضح عند التحويم
+        isDone && 'opacity-60 hover:opacity-100',
+      )}
+      style={{ borderInlineStartColor: isDone ? '#e2e8f0' : task.color || '#e2e8f0' }}
     >
       <button
         onClick={() => next && onStatusChange(next)}
@@ -57,7 +64,8 @@ export function TaskCard({
       <div className="min-w-0 flex-1">
         <p
           className={cn(
-            'truncate text-sm font-medium text-slate-800',
+            'truncate text-sm text-slate-800',
+            task.is_unread ? 'font-bold' : 'font-medium',
             task.status === 'DONE' && 'text-slate-400 line-through',
           )}
         >

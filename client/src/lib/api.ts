@@ -11,6 +11,8 @@ export interface ProjectInput {
   title: string
   color: string
   details?: string
+  /** رابط مشاركة ملفات المشروع */
+  share_link?: string
 }
 
 export interface TaskInput {
@@ -112,7 +114,15 @@ export const api = {
       request<Task>('/tasks/', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: Partial<TaskInput>) =>
       request<Task>(`/tasks/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+    /** حذف ناعم — ينقل المهمة إلى سلة المحذوفات */
     remove: (id: number) => request<void>(`/tasks/${id}/`, { method: 'DELETE' }),
+    trashList: () => request<Task[]>('/tasks/?trashed=1'),
+    restore: (id: number) => request<Task>(`/tasks/${id}/restore/`, { method: 'POST' }),
+    /** حذف نهائي لا رجعة فيه */
+    purge: (id: number) => request<void>(`/tasks/${id}/purge/`, { method: 'DELETE' }),
+    /** تعليم مهام كمقروءة بعد عرضها أمام المستخدم */
+    markSeen: (ids: number[]) =>
+      request<void>('/tasks/mark_seen/', { method: 'POST', body: JSON.stringify({ ids }) }),
     comments: (taskId: number) => request<TaskComment[]>(`/tasks/${taskId}/comments/`),
     addComment: (taskId: number, body: string) =>
       request<TaskComment>(`/tasks/${taskId}/comments/`, {
@@ -121,6 +131,8 @@ export const api = {
       }),
   },
   attachments: {
+    /** كل المرفقات عبر جميع المشاريع — لصفحة «كل المرفقات» */
+    listAll: () => request<Attachment[]>('/attachments/'),
     list: (projectId: number) => request<Attachment[]>(`/attachments/?project=${projectId}`),
     create: (projectId: number, file: File, description: string) => {
       const data = new FormData()
@@ -152,13 +164,21 @@ export const api = {
       request<ProjectUpdate>('/updates/', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, body: string) =>
       request<ProjectUpdate>(`/updates/${id}/`, { method: 'PATCH', body: JSON.stringify({ body }) }),
+    /** حذف ناعم — ينقل التحديث إلى سلة المحذوفات */
     remove: (id: number) => request<void>(`/updates/${id}/`, { method: 'DELETE' }),
+    trashList: () => request<ProjectUpdate[]>('/updates/?trashed=1'),
+    restore: (id: number) =>
+      request<ProjectUpdate>(`/updates/${id}/restore/`, { method: 'POST' }),
+    /** حذف نهائي لا رجعة فيه */
+    purge: (id: number) => request<void>(`/updates/${id}/purge/`, { method: 'DELETE' }),
   },
   tags: {
     list: () => request<Tag[]>('/tags/'),
   },
   notifications: {
-    list: () => request<AppNotification[]>('/notifications/'),
+    /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */
+    list: (limit?: number) =>
+      request<AppNotification[]>(`/notifications/${limit ? `?limit=${limit}` : ''}`),
     /** بدون ids: يعلّم الكل كمقروء */
     markRead: (ids?: number[]) =>
       request<void>('/notifications/mark_read/', {

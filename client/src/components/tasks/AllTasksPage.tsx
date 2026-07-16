@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useAllUpdates, useProjects } from '../../hooks/useProjects'
-import { useTags, useTaskMutations, useTasks } from '../../hooks/useTasks'
+import { useMarkTasksSeen, useTags, useTaskMutations, useTasks } from '../../hooks/useTasks'
 import { useUsers } from '../../hooks/useUsers'
 import { cn, formatDate } from '../../lib/utils'
 import {
@@ -84,6 +84,9 @@ export function AllTasksPage() {
       .filter((t) => !query || t.title.toLowerCase().includes(query))
   }, [tasks, filters])
 
+  // المهام المعروضة أمام المستخدم تُعلَّم مقروءةً (تُميَّز صفراء حتى المغادرة)
+  useMarkTasksSeen(visibleTasks)
+
   /** فلاتر التحديثات: المشروع والبحث النصي فقط (الحالة/الوسوم/الموظف تخص المهام) */
   const visibleUpdates = useMemo(() => {
     const query = filters.query.trim().toLowerCase()
@@ -116,7 +119,8 @@ export function AllTasksPage() {
   }
 
   const handleDelete = (task: Task) => {
-    if (!confirm(`حذف مهمة «${task.title}»؟`)) return
+    if (!confirm(`نقل مهمة «${task.title}» إلى المحذوفات؟ يمكنك استعادتها أو حذفها نهائياً من هناك.`))
+      return
     taskMutations.remove.mutate(task.id)
   }
 
@@ -320,7 +324,7 @@ export function AllTasksPage() {
       </div>
 
       {/* الخلاصة الموحدة: مهام وتحديثات */}
-      <div className="mx-auto max-w-4xl space-y-2 px-6 py-6">
+      <div className="mx-auto max-w-6xl space-y-2 px-6 py-6">
         {feed.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
             {hasActiveFilters ? 'لا توجد عناصر مطابقة للفلاتر' : 'لا توجد عناصر بعد'}
@@ -363,7 +367,11 @@ export function AllTasksPage() {
 function UpdateFeedCard({ update }: { update: ProjectUpdate }) {
   return (
     <div
-      className="flex items-start gap-3 rounded-xl border border-slate-200 border-s-4 bg-white px-4 py-3 shadow-sm"
+      className={cn(
+        'flex items-start gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm',
+        // غير مقروء — يصبح مقروءاً عند فتح صفحة المشروع
+        update.is_unread ? 'bg-yellow-50' : 'bg-white',
+      )}
       style={{ borderInlineStartColor: update.project_color }}
     >
       {update.author ? (
@@ -379,7 +387,7 @@ function UpdateFeedCard({ update }: { update: ProjectUpdate }) {
             تحديث
           </span>
           {update.author && (
-            <span className="font-bold text-slate-600">{displayName(update.author)}</span>
+            <span className="text-slate-500">{displayName(update.author)}</span>
           )}
           <Link
             to={`/projects/${update.project}`}
@@ -393,7 +401,14 @@ function UpdateFeedCard({ update }: { update: ProjectUpdate }) {
           </Link>
           <span>{formatDate(update.created_at)}</span>
         </div>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{update.body}</p>
+        <p
+          className={cn(
+            'mt-1 whitespace-pre-wrap text-sm text-slate-700',
+            update.is_unread && 'font-bold',
+          )}
+        >
+          {update.body}
+        </p>
       </div>
     </div>
   )

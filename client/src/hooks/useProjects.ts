@@ -50,14 +50,23 @@ export function useAttachments(projectId: number) {
   })
 }
 
-export function useAttachmentMutations(projectId: number) {
+/** كل المرفقات عبر المشاريع — لصفحة «كل المرفقات» */
+export function useAllAttachments() {
+  return useQuery({ queryKey: ['attachments', 'all'], queryFn: api.attachments.listAll })
+}
+
+/** projectId مطلوب للرفع (create) فقط — التعديل والحذف يعملان بدونه.
+ *  الإبطال بالبادئة ['attachments'] يشمل قائمة المشروع وصفحة «كل المرفقات». */
+export function useAttachmentMutations(projectId?: number) {
   const queryClient = useQueryClient()
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['attachments', projectId] })
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['attachments'] })
 
   return {
     create: useMutation({
-      mutationFn: ({ file, description }: { file: File; description: string }) =>
-        api.attachments.create(projectId, file, description),
+      mutationFn: ({ file, description }: { file: File; description: string }) => {
+        if (projectId === undefined) throw new Error('projectId مطلوب لرفع مرفق')
+        return api.attachments.create(projectId, file, description)
+      },
       onSuccess: invalidate,
     }),
     update: useMutation({
@@ -81,20 +90,36 @@ export function useAllUpdates() {
   return useQuery({ queryKey: ['updates', 'all'], queryFn: api.updates.listAll })
 }
 
-export function useProjectUpdateMutations(projectId: number) {
+/** التحديثات المنقولة إلى المحذوفات — endpoint خاص بالمدير، مرِّر enabled=false لغيره. */
+export function useTrashedUpdates(enabled = true) {
+  return useQuery({
+    queryKey: ['updates', 'trash'],
+    queryFn: api.updates.trashList,
+    enabled,
+  })
+}
+
+/** projectId مطلوب للإضافة (create) فقط — بقية العمليات تعمل بدونه. */
+export function useProjectUpdateMutations(projectId?: number) {
   const queryClient = useQueryClient()
-  // البادئة ['updates'] تشمل قائمة المشروع والخلاصة الموحدة معاً
+  // البادئة ['updates'] تشمل قائمة المشروع والخلاصة الموحدة والمحذوفات معاً
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['updates'] })
 
   return {
     create: useMutation({
-      mutationFn: (body: string) => api.updates.create({ project: projectId, body }),
+      mutationFn: (body: string) => {
+        if (projectId === undefined) throw new Error('projectId مطلوب لإضافة تحديث')
+        return api.updates.create({ project: projectId, body })
+      },
       onSuccess: invalidate,
     }),
     update: useMutation({
       mutationFn: ({ id, body }: { id: number; body: string }) => api.updates.update(id, body),
       onSuccess: invalidate,
     }),
+    // حذف ناعم ← المحذوفات، ومنها استعادة أو حذف نهائي
     remove: useMutation({ mutationFn: api.updates.remove, onSuccess: invalidate }),
+    restore: useMutation({ mutationFn: api.updates.restore, onSuccess: invalidate }),
+    purge: useMutation({ mutationFn: api.updates.purge, onSuccess: invalidate }),
   }
 }

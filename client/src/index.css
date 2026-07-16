@@ -28,8 +28,14 @@
 .rich-text a {
   @apply cursor-pointer text-blue-600 underline;
 }
+/* الأبعاد الافتراضية للصور داخل التفاصيل: 200×200 كحد أقصى مع حفظ النسبة —
+   والنقر عليها في وضع القراءة يعرضها بحجمها الكامل (Lightbox) */
 .rich-text img {
-  @apply my-2 max-w-full rounded-lg;
+  @apply my-2 rounded-lg;
+  max-width: min(200px, 100%);
+  max-height: 200px;
+  width: auto;
+  height: auto;
 }
 .rich-text img.ProseMirror-selectednode {
   @apply ring-2 ring-blue-400;
@@ -38,6 +44,21 @@
 /* في وضع القراءة: النقر على الصورة يكبّرها */
 .rich-text-view img {
   @apply cursor-zoom-in;
+}
+
+/* وميض العنصر المستهدف عند الوصول إليه من إشعار — ثلاث نبضات زرقاء ثم يهدأ */
+@keyframes focus-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgb(59 130 246 / 0.85);
+  }
+}
+.focus-flash {
+  animation: focus-flash 1s ease-in-out 3;
+  border-radius: 0.75rem;
+  scroll-margin-block: 90px; /* لا يختفي الهدف خلف الأشرطة اللاصقة عند التمرير */
 }
 
 /* النص التوضيحي عند فراغ المحرر — float-right لأن اتجاه الصفحة RTL */

@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Send } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useCommentMutations, useTaskComments } from '../../hooks/useTasks'
-import { formatDate } from '../../lib/utils'
+import { cn, formatDate } from '../../lib/utils'
 import { displayName, type Task } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
@@ -13,9 +13,13 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
   const [body, setBody] = useState('')
   const queryClient = useQueryClient()
 
-  // بعد جلب التعليقات يكون الخادم قد حدّث «آخر اطلاع» — حدّث القائمة لتختفي النقطة الحمراء
+  // بعد جلب التعليقات يكون الخادم قد حدّث «آخر اطلاع» — حدّث قائمة المهام
+  // (نقطة أيقونة التعليقات) وقائمة المشاريع (النقطة الحمراء في الشريط الجانبي)
   useEffect(() => {
-    if (!isFetching) queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    if (!isFetching) {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    }
   }, [isFetching, queryClient])
 
   const handleSubmit = (e: FormEvent) => {
@@ -43,16 +47,29 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
                 ؟
               </span>
             )}
-            <div className="min-w-0 flex-1 rounded-lg bg-slate-50 px-3 py-2">
+            <div
+              className={cn(
+                'min-w-0 flex-1 rounded-lg px-3 py-2',
+                // تعليق لم يقرأه المستخدم بعد — خلفية صفراء فاتحة
+                comment.is_unread ? 'bg-yellow-50' : 'bg-slate-50',
+              )}
+            >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-bold text-slate-700">
+                <span className="truncate text-xs text-slate-400">
                   {comment.author ? displayName(comment.author) : 'مستخدم محذوف'}
                 </span>
                 <span className="shrink-0 text-[10px] text-slate-400">
                   {formatDate(comment.created_at)}
                 </span>
               </div>
-              <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-700">{comment.body}</p>
+              <p
+                className={cn(
+                  'mt-0.5 whitespace-pre-wrap text-sm text-slate-700',
+                  comment.is_unread && 'font-bold',
+                )}
+              >
+                {comment.body}
+              </p>
             </div>
           </div>
         ))}

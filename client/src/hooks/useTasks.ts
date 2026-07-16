@@ -1,8 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { api, type TaskInput } from '../lib/api'
+import type { Task } from '../types'
 
 export function useTasks() {
   return useQuery({ queryKey: ['tasks'], queryFn: api.tasks.list })
+}
+
+/** المهام المنقولة إلى المحذوفات — endpoint خاص بالمدير، مرِّر enabled=false لغيره. */
+export function useTrashedTasks(enabled = true) {
+  return useQuery({
+    queryKey: ['tasks', 'trash'],
+    queryFn: api.tasks.trashList,
+    enabled,
+  })
+}
+
+/** يعلّم المهام غير المقروءة المعروضة أمام المستخدم كمقروءة على الخادم.
+ *  لا نبطل ['tasks'] كي يبقى التمييز الأصفر ظاهراً طوال الزيارة الحالية —
+ *  يختفي مع أول جلب تالٍ. نبطل ['projects'] فقط لتحديث النقطة الحمراء. */
+export function useMarkTasksSeen(tasks: Task[]) {
+  const queryClient = useQueryClient()
+  const marked = useRef<Set<number>>(new Set())
+
+  useEffect(() => {
+    const ids = tasks.filter((t) => t.is_unread && !marked.current.has(t.id)).map((t) => t.id)
+    if (ids.length === 0) return
+    for (const id of ids) marked.current.add(id)
+    api.tasks
+      .markSeen(ids)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['projects'] }))
+      .catch(() => {}) // فشل صامت — ستبقى غير مقروءة للزيارة التالية
+  }, [tasks, queryClient])
 }
 
 export function useTags() {
@@ -25,7 +54,10 @@ export function useTaskMutations() {
         api.tasks.update(id, data),
       onSuccess: invalidate,
     }),
+    // حذف ناعم ← المحذوفات، ومنها استعادة أو حذف نهائي
     remove: useMutation({ mutationFn: api.tasks.remove, onSuccess: invalidate }),
+    restore: useMutation({ mutationFn: api.tasks.restore, onSuccess: invalidate }),
+    purge: useMutation({ mutationFn: api.tasks.purge, onSuccess: invalidate }),
   }
 }
 

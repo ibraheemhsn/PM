@@ -21,6 +21,8 @@ export interface Project {
   title: string
   color: string
   details: string
+  /** رابط مشاركة ملفات المشروع (Drive/مسار شبكة…) — أيقونة الفولدر بجانب العنوان */
+  share_link: string
   /** تعديل مقترح بانتظار مراجعة المدير — النسخة المعتمدة في details لا تتغير إلا بالاعتماد */
   pending_details: string
   has_pending_details: boolean
@@ -29,6 +31,8 @@ export interface Project {
   /** غير فارغ = المشروع في سلة المحذوفات */
   deleted_at: string | null
   tasks_count: number
+  /** يوجد جديد لم يقرأه المستخدم (مهمة/تعليق/تحديث) — نقطة حمراء في الشريط الجانبي */
+  has_unread: boolean
   created_at: string
   updated_at: string
 }
@@ -46,6 +50,10 @@ export interface Task {
   comments_count: number
   /** توجد تعليقات من الآخرين لم يقرأها المستخدم الحالي */
   has_unread_comments: boolean
+  /** لم يطّلع المستخدم الحالي على المهمة بعد — تُميَّز بخلفية صفراء */
+  is_unread: boolean
+  /** غير فارغ = المهمة في سلة المحذوفات */
+  deleted_at: string | null
   created_at: string
   updated_at: string
 }
@@ -54,6 +62,8 @@ export interface TaskComment {
   id: number
   author: UserBrief | null // null إذا حُذف حساب الكاتب
   body: string
+  /** أحدث من آخر اطلاع للمستخدم وليس من كتابته — يُميَّز بخلفية صفراء */
+  is_unread: boolean
   created_at: string
 }
 
@@ -65,6 +75,10 @@ export interface ProjectUpdate {
   project_color: string
   author: UserBrief | null
   body: string
+  /** أحدث من آخر اطلاع للمستخدم على تحديثات المشروع وليس من كتابته */
+  is_unread: boolean
+  /** غير فارغ = التحديث في سلة المحذوفات */
+  deleted_at: string | null
   created_at: string
   updated_at: string
 }
@@ -73,6 +87,8 @@ export interface ProjectUpdate {
 export interface Attachment {
   id: number
   project: number
+  project_title: string
+  project_color: string
   /** رابط الملف */
   file: string
   file_name: string

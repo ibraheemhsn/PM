@@ -20,8 +20,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
-    Attachment, Notification, Project, ProjectUpdate, Tag, Task, TaskComment,
-    TaskCommentRead, User,
+    Attachment, Notification, Project, ProjectUpdate, ProjectUpdateRead, Tag,
+    Task, TaskComment, TaskCommentRead, TaskSeen, User,
 )
 from .permissions import IsManager, IsManagerOrReadOnly, is_manager
 from .serializers import (
@@ -35,6 +35,25 @@ ALLOWED_TASK_ORDERINGS = {"created_at", "updated_at"}
 # ما يُسمح للموظف بتعديله في المهمة
 EMPLOYEE_EDITABLE_FIELDS = {"status"}
 EMPLOYEE_ALLOWED_STATUSES = {Task.Status.IN_PROGRESS, Task.Status.REVIEW}
+
+
+# ===== مؤشرات «غير مقروء» =====
+
+def _unread_comment_task_ids(user, task_ids=None):
+    """المهام التي فيها تعليقات من الآخرين أحدث من آخر اطلاع للمستخدم.
+    task_ids (اختياري) يحصر الفحص في مجموعة مهام محددة."""
+    last_seen = dict(
+        TaskCommentRead.objects.filter(user=user).values_list("task_id", "last_seen_at")
+    )
+    comments = TaskComment.objects.exclude(author=user)
+    if task_ids is not None:
+        comments = comments.filter(task_id__in=task_ids)
+    latest_by_task = comments.values("task_id").annotate(latest=Max("created_at"))
+    return {
+        row["task_id"]
+        for row in latest_by_task
+        if row["task_id"] not in last_seen or row["latest"] > last_seen[row["task_id"]]
+    }
 
 
 # ===== الإشعارات =====
@@ -65,7 +84,13 @@ class NotificationViewSet(viewsets.GenericViewSet):
         return Notification.objects.filter(recipient=self.request.user)
 
     def list(self, request):
-        qs = self.get_queryset().select_related("actor")[:30]
+        # limit اختياري لصفحة الإشعارات الكاملة — الافتراضي 30 (فحص الجرس الدوري)
+        try:
+            limit = int(request.query_params.get("limit", 30))
+        except ValueError:
+            limit = 30
+        limit = max(1, min(limit, 200))
+        qs = self.get_queryset().select_related("actor")[:limit]
         return Response(
             NotificationSerializer(qs, many=True, context={"request": request}).data
         )
@@ -138,15 +163,81 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [IsManagerOrReadOnly]
 
     def get_queryset(self):
-        qs = Project.objects.annotate(tasks_count=Count("tasks"))
+        user = self.request.user
+        manager = is_manager(user)
+
+        # العدّاد لا يشمل المهام المنقولة إلى المحذوفات — وللموظف: مهامه المسندة فقط
+        task_filter = Q(tasks__deleted_at__isnull=True)
+        if not manager:
+            task_filter &= Q(tasks__assignees=user)
+        qs = Project.objects.annotate(
+            tasks_count=Count("tasks", filter=task_filter, distinct=True)
+        )
+
         # إجراءات المحذوفات تستهدف المشاريع المحذوفة ناعماً فقط
         if self.action in ("restore", "purge"):
             return qs.filter(deleted_at__isnull=False)
         if self.action == "list" and self.request.query_params.get("trashed"):
-            if not is_manager(self.request.user):
+            if not manager:
                 raise PermissionDenied("قسم المحذوفات متاح للمدير فقط.")
             return qs.filter(deleted_at__isnull=False).order_by("-deleted_at")
-        return qs.filter(deleted_at__isnull=True)
+        qs = qs.filter(deleted_at__isnull=True)
+
+        # قائمة الموظف تقتصر على المشاريع التي له فيها مهام مسندة
+        if self.action == "list" and not manager:
+            qs = qs.filter(
+                tasks__assignees=user, tasks__deleted_at__isnull=True
+            ).distinct()
+        return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # نقطة «غير مقروء» في الشريط الجانبي — تُحسب لقائمة المشاريع الحية فقط
+        if self.action == "list" and not self.request.query_params.get("trashed"):
+            context["unread_project_ids"] = self._unread_project_ids()
+        return context
+
+    def _unread_project_ids(self):
+        """المشاريع التي فيها جديد لم يقرأه المستخدم: مهمة لم يطّلع عليها،
+        أو تعليق غير مقروء على مهمة يراها، أو تحديث أحدث من آخر اطلاعه."""
+        user = self.request.user
+        manager = is_manager(user)
+
+        tasks = Task.objects.filter(project__deleted_at__isnull=True, deleted_at__isnull=True)
+        if not manager:
+            tasks = tasks.filter(assignees=user)  # الموظف: مهامه المسندة فقط
+        task_project = dict(tasks.values_list("id", "project_id"))
+
+        unread = set()
+
+        # 1) مهام لم يطّلع عليها المستخدم بعد
+        seen_ids = set(
+            TaskSeen.objects.filter(user=user, task_id__in=task_project)
+            .values_list("task_id", flat=True)
+        )
+        unread |= {pid for tid, pid in task_project.items() if tid not in seen_ids}
+
+        # 2) تعليقات غير مقروءة على مهام ضمن نطاقه
+        for task_id in _unread_comment_task_ids(user, task_project.keys()):
+            unread.add(task_project[task_id])
+
+        # 3) تحديثات مشاريع أحدث من آخر اطلاعه — الموظف: مشاريع مهامه فقط
+        last_seen = dict(
+            ProjectUpdateRead.objects.filter(user=user)
+            .values_list("project_id", "last_seen_at")
+        )
+        updates = ProjectUpdate.objects.filter(
+            project__deleted_at__isnull=True, deleted_at__isnull=True
+        ).exclude(author=user)
+        if not manager:
+            updates = updates.filter(project_id__in=set(task_project.values()))
+        latest_by_project = updates.values("project_id").annotate(latest=Max("created_at"))
+        for row in latest_by_project:
+            seen_at = last_seen.get(row["project_id"])
+            if seen_at is None or row["latest"] > seen_at:
+                unread.add(row["project_id"])
+
+        return unread
 
     def _project_response(self, request, project):
         return Response(ProjectSerializer(project, context={"request": request}).data)
@@ -226,6 +317,15 @@ class TaskViewSet(viewsets.ModelViewSet):
         if not is_manager(self.request.user):
             qs = qs.filter(assignees=self.request.user)  # الموظف يرى مهامه فقط
 
+        # إجراءات المحذوفات تستهدف المهام المحذوفة ناعماً فقط
+        if self.action in ("restore", "purge"):
+            return qs.filter(deleted_at__isnull=False)
+        if self.action == "list" and self.request.query_params.get("trashed"):
+            if not is_manager(self.request.user):
+                raise PermissionDenied("قسم المحذوفات متاح للمدير فقط.")
+            return qs.filter(deleted_at__isnull=False).order_by("-deleted_at")
+        qs = qs.filter(deleted_at__isnull=True)
+
         params = self.request.query_params
         if project_id := params.get("project"):
             qs = qs.filter(project_id=project_id)
@@ -245,25 +345,26 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["unread_task_ids"] = self._unread_task_ids()
+        context["unread_task_ids"] = _unread_comment_task_ids(self.request.user)
+        # المهام التي اطّلع عليها المستخدم — غيابها يعني «مهمة غير مقروءة»
+        context["seen_task_ids"] = set(
+            TaskSeen.objects.filter(user=self.request.user).values_list("task_id", flat=True)
+        )
         return context
 
-    def _unread_task_ids(self):
-        """المهام التي فيها تعليقات من الآخرين أحدث من آخر اطلاع للمستخدم."""
-        user = self.request.user
-        last_seen = dict(
-            TaskCommentRead.objects.filter(user=user).values_list("task_id", "last_seen_at")
+    @action(detail=False, methods=["post"])
+    def mark_seen(self, request):
+        """تعليم مهام كمقروءة — تستدعيها الواجهة بعد عرضها أمام المستخدم."""
+        ids = request.data.get("ids") or []
+        if not isinstance(ids, list):
+            return Response({"detail": "ids يجب أن تكون قائمة."}, status=status.HTTP_400_BAD_REQUEST)
+        ids = [item for item in ids if isinstance(item, int)]
+        tasks = self.get_queryset().filter(id__in=ids)  # يحترم نطاق الموظف
+        TaskSeen.objects.bulk_create(
+            [TaskSeen(task=task, user=request.user) for task in tasks],
+            ignore_conflicts=True,
         )
-        latest_by_task = (
-            TaskComment.objects.exclude(author=user)
-            .values("task_id")
-            .annotate(latest=Max("created_at"))
-        )
-        return {
-            row["task_id"]
-            for row in latest_by_task
-            if row["task_id"] not in last_seen or row["latest"] > last_seen[row["task_id"]]
-        }
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def create(self, request, *args, **kwargs):
         if not is_manager(request.user):
@@ -272,6 +373,8 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         task = serializer.save()
+        # الكاتب اطّلع على مهمته بطبيعة الحال — تبقى «غير مقروءة» للبقية
+        TaskSeen.objects.create(task=task, user=self.request.user)
         _notify(
             task.assignees.all(), actor=self.request.user,
             kind=Notification.Kind.TASK_ASSIGNED,
@@ -329,23 +432,47 @@ class TaskViewSet(viewsets.ModelViewSet):
         return response
 
     def destroy(self, request, *args, **kwargs):
+        """حذف ناعم: تُنقل المهمة إلى المحذوفات بدل الحذف النهائي."""
         if not is_manager(request.user):
             raise PermissionDenied("حذف المهام متاح للمدير فقط.")
-        return super().destroy(request, *args, **kwargs)
+        task = self.get_object()
+        task.deleted_at = timezone.now()
+        task.save(update_fields=["deleted_at", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsManager])
+    def restore(self, request, pk=None):
+        """استعادة مهمة من المحذوفات."""
+        task = self.get_object()
+        task.deleted_at = None
+        task.save(update_fields=["deleted_at", "updated_at"])
+        return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=["delete"], permission_classes=[IsManager])
+    def purge(self, request, pk=None):
+        """حذف نهائي لا رجعة فيه — يحذف المهمة بتعليقاتها."""
+        self.get_object().delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get", "post"])
     def comments(self, request, pk=None):
         """تعليقات المهمة: get_object يحترم نطاق الموظف، فلا يعلّق إلا على مهامه.
         القراءة أو الإضافة تُحدّث مؤشر «آخر اطلاع» فيختفي تنبيه غير المقروء."""
         task = self.get_object()
+        # آخر اطلاع السابق يحدد أي التعليقات «غير مقروءة» في هذا العرض،
+        # ثم يُحدَّث فوراً فتصبح مقروءة في الفتح التالي
+        prev_seen = (
+            TaskCommentRead.objects.filter(task=task, user=request.user)
+            .values_list("last_seen_at", flat=True)
+            .first()
+        )
         TaskCommentRead.objects.update_or_create(
             task=task, user=request.user, defaults={"last_seen_at": timezone.now()}
         )
         if request.method == "GET":
             qs = task.comments.select_related("author")
-            return Response(
-                TaskCommentSerializer(qs, many=True, context={"request": request}).data
-            )
+            context = {"request": request, "prev_seen": prev_seen}
+            return Response(TaskCommentSerializer(qs, many=True, context=context).data)
         serializer = TaskCommentSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save(task=task, author=request.user)
@@ -369,9 +496,41 @@ class ProjectUpdateViewSet(viewsets.ModelViewSet):
         qs = ProjectUpdate.objects.select_related("author", "project").filter(
             project__deleted_at__isnull=True
         )
+        # إجراءات المحذوفات تستهدف التحديثات المحذوفة ناعماً فقط
+        if self.action in ("restore", "purge"):
+            return qs.filter(deleted_at__isnull=False)
+        if self.action == "list" and self.request.query_params.get("trashed"):
+            if not is_manager(self.request.user):
+                raise PermissionDenied("قسم المحذوفات متاح للمدير فقط.")
+            return qs.filter(deleted_at__isnull=False).order_by("-deleted_at")
+        qs = qs.filter(deleted_at__isnull=True)
         if project_id := self.request.query_params.get("project"):
             qs = qs.filter(project_id=project_id)
         return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # آخر اطلاع لكل مشروع — أساس مؤشر «تحديث غير مقروء»
+        context["updates_last_seen"] = dict(
+            ProjectUpdateRead.objects.filter(user=self.request.user)
+            .values_list("project_id", "last_seen_at")
+        )
+        return context
+
+    def list(self, request, *args, **kwargs):
+        # التسلسل مقصود: تُعلَّم غير المقروءة في الرد أولاً (وفق آخر اطلاع السابق)
+        # ثم يُحدَّث الاطلاع — فتظهر مميزة مرة واحدة وتصبح مقروءة في الزيارة التالية.
+        # فتح صفحة مشروع محدد فقط يُعدّ قراءةً — الخلاصة الموحدة لا تُعلّم شيئاً.
+        response = super().list(request, *args, **kwargs)
+        project_id = request.query_params.get("project")
+        if project_id and project_id.isdigit() and Project.objects.filter(
+            pk=project_id, deleted_at__isnull=True
+        ).exists():
+            ProjectUpdateRead.objects.update_or_create(
+                project_id=project_id, user=request.user,
+                defaults={"last_seen_at": timezone.now()},
+            )
+        return response
 
     def perform_create(self, serializer):
         update = serializer.save(author=self.request.user)
@@ -391,8 +550,28 @@ class ProjectUpdateViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
+        """حذف ناعم: يُنقل التحديث إلى المحذوفات بدل الحذف النهائي."""
         self._check_can_modify(request)
-        return super().destroy(request, *args, **kwargs)
+        update = self.get_object()
+        update.deleted_at = timezone.now()
+        update.save(update_fields=["deleted_at", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsManager])
+    def restore(self, request, pk=None):
+        """استعادة تحديث من المحذوفات."""
+        update = self.get_object()
+        update.deleted_at = None
+        update.save(update_fields=["deleted_at", "updated_at"])
+        return Response(
+            ProjectUpdateSerializer(update, context=self.get_serializer_context()).data
+        )
+
+    @action(detail=True, methods=["delete"], permission_classes=[IsManager])
+    def purge(self, request, pk=None):
+        """حذف نهائي لا رجعة فيه."""
+        self.get_object().delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _check_can_modify(self, request):
         update = self.get_object()
@@ -407,7 +586,10 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     serializer_class = AttachmentSerializer
 
     def get_queryset(self):
-        qs = Attachment.objects.select_related("uploaded_by")
+        # مرفقات المشاريع المحذوفة ناعماً تختفي مع مشاريعها (كالمهام والتحديثات)
+        qs = Attachment.objects.select_related("uploaded_by", "project").filter(
+            project__deleted_at__isnull=True
+        )
         if project_id := self.request.query_params.get("project"):
             qs = qs.filter(project_id=project_id)
         return qs
@@ -456,30 +638,38 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class GlobalSearchView(APIView):
-    """بحث Ctrl+K الشامل: عناوين المشاريع وتفاصيلها + عناوين المهام."""
+    """بحث Ctrl+K الشامل: عناوين المشاريع وتفاصيلها + عناوين المهام
+    + المرفقات (اسم الملف والوصف)."""
 
     def get(self, request):
         query = request.query_params.get("q", "").strip()
         if not query:
-            return Response({"projects": [], "tasks": []})
+            return Response({"projects": [], "tasks": [], "attachments": []})
 
         projects = Project.objects.filter(
             deleted_at__isnull=True
         ).filter(
             Q(title__icontains=query) | Q(details__icontains=query)
-        ).annotate(tasks_count=Count("tasks"))[:10]
+        ).annotate(tasks_count=Count("tasks", filter=Q(tasks__deleted_at__isnull=True)))[:10]
 
         tasks = (
             Task.objects.select_related("project")
             .prefetch_related("tags", "assignees")
-            .filter(project__deleted_at__isnull=True)
+            .filter(project__deleted_at__isnull=True, deleted_at__isnull=True)
         )
         if not is_manager(request.user):
             tasks = tasks.filter(assignees=request.user)
         tasks = tasks.filter(title__icontains=query)[:10]
 
+        attachments = (
+            Attachment.objects.select_related("uploaded_by", "project")
+            .filter(project__deleted_at__isnull=True)
+            .filter(Q(file_name__icontains=query) | Q(description__icontains=query))[:10]
+        )
+
         context = {"request": request}
         return Response({
             "projects": ProjectSerializer(projects, many=True, context=context).data,
             "tasks": TaskSerializer(tasks, many=True, context=context).data,
+            "attachments": AttachmentSerializer(attachments, many=True, context=context).data,
         })

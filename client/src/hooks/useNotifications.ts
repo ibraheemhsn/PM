@@ -9,9 +9,10 @@ const POLL_INTERVAL = 15_000
 /** إشعارات المستخدم مع فحص دوري — يستمر حتى والنافذة في الخلفية
  *  كي يصل إشعار المتصفح والصوت أثناء العمل في تبويب آخر. */
 export function useNotifications() {
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['notifications'],
-    queryFn: api.notifications.list,
+    queryFn: () => api.notifications.list(),
     refetchInterval: POLL_INTERVAL,
     refetchIntervalInBackground: true,
   })
@@ -30,6 +31,11 @@ export function useNotifications() {
     }
     const fresh = items.filter((n) => n.id > (lastSeenId.current as number) && !n.is_read)
     if (fresh.length > 0) {
+      // وصول جديد يعني غالباً عناصر غير مقروءة — حدّث النقطة الحمراء
+      // في الشريط الجانبي والقوائم دون انتظار تنقّل المستخدم
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['updates'] })
       playNotificationSound()
       // إشعار متصفح لكل جديد (حتى 3 كي لا تتكدس النوافذ)
       for (const n of fresh.slice(0, 3)) {
@@ -40,13 +46,22 @@ export function useNotifications() {
       }
     }
     lastSeenId.current = Math.max(lastSeenId.current, maxId)
-  }, [query.data])
+  }, [query.data, queryClient])
 
   return query
 }
 
+/** سجل أطول (آخر 100) لصفحة الإشعارات الكاملة — بلا فحص دوري خاص به */
+export function useAllNotifications() {
+  return useQuery({
+    queryKey: ['notifications', 'page'],
+    queryFn: () => api.notifications.list(100),
+  })
+}
+
 export function useNotificationMutations() {
   const queryClient = useQueryClient()
+  // البادئة تشمل قائمة الجرس وصفحة الإشعارات معاً
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['notifications'] })
 
   return {

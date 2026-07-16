@@ -1,23 +1,25 @@
-import { Folder, Search } from 'lucide-react'
+import { Folder, Paperclip, Search } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useProjects } from '../../hooks/useProjects'
+import { useAllAttachments, useProjects } from '../../hooks/useProjects'
 import { useTasks } from '../../hooks/useTasks'
-import { cn, stripHtml } from '../../lib/utils'
+import { arabicToLatinKeys, cn, latinToArabicKeys, stripHtml } from '../../lib/utils'
 import type { TaskStatus } from '../../types'
 import { StatusIcon } from '../tasks/StatusIcon'
 
 interface SearchResult {
-  type: 'project' | 'task'
+  type: 'project' | 'task' | 'attachment'
   key: string
   title: string
   subtitle: string
   color: string
   to: string
   status?: TaskStatus
+  /** المرفقات: يُفتح الملف نفسه في تبويب جديد بدل التنقل الداخلي */
+  href?: string
 }
 
-const GROUP_LABELS = { project: 'المشاريع', task: 'المهام' } as const
+const GROUP_LABELS = { project: 'المشاريع', task: 'المهام', attachment: 'المرفقات' } as const
 
 /** مقتطف نصي حول موضع التطابق — لعرض سياق النتيجة */
 function excerpt(text: string, query: string, radius = 35): string {
@@ -32,12 +34,14 @@ interface CommandPaletteProps {
   onClose: () => void
 }
 
-/** البحث الشامل الفوري (Ctrl+K): عناوين المشاريع وتفاصيلها + عناوين المهام.
+/** البحث الشامل الفوري (Ctrl+K): عناوين المشاريع وتفاصيلها + عناوين المهام
+ *  + المرفقات (اسم الملف والوصف).
  *  يبحث في بيانات React Query المخزّنة محلياً، فالنتائج لحظية بلا أي طلب شبكة. */
 export function CommandPalette({ onClose }: CommandPaletteProps) {
   const navigate = useNavigate()
   const { data: projects = [] } = useProjects()
   const { data: tasks = [] } = useTasks()
+  const { data: attachments = [] } = useAllAttachments()
 
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -46,17 +50,25 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
     const q = query.trim().toLowerCase()
     if (!q) return []
 
+    // البحث الذكي: العبارة كما كُتبت + تحويلها بين تخطيطي اللوحة —
+    // «fdzm» بالحروف اللاتينية تطابق «بيئة»، و«يبلي» بالعربية تطابق «dfgd»
+    const variants = [...new Set([q, latinToArabicKeys(q), arabicToLatinKeys(q)])]
+    const findMatch = (text: string): string | undefined => {
+      const lower = text.toLowerCase()
+      return variants.find((variant) => lower.includes(variant))
+    }
+
     const projectHits: SearchResult[] = projects
       .map((p): SearchResult | null => {
-        const titleMatch = p.title.toLowerCase().includes(q)
+        const titleMatch = findMatch(p.title)
         const detailsText = stripHtml(p.details)
-        const detailsMatch = !titleMatch && detailsText.toLowerCase().includes(q)
+        const detailsMatch = titleMatch ? undefined : findMatch(detailsText)
         if (!titleMatch && !detailsMatch) return null
         return {
           type: 'project',
           key: `project-${p.id}`,
           title: p.title,
-          subtitle: detailsMatch ? excerpt(detailsText, q) : `${p.tasks_count} مهمة`,
+          subtitle: detailsMatch ? excerpt(detailsText, detailsMatch) : `${p.tasks_count} مهمة`,
           color: p.color,
           to: `/projects/${p.id}`,
         }
@@ -65,7 +77,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
       .slice(0, 6)
 
     const taskHits: SearchResult[] = tasks
-      .filter((t) => t.title.toLowerCase().includes(q))
+      .filter((t) => findMatch(t.title))
       .slice(0, 8)
       .map((t) => ({
         type: 'task' as const,
@@ -77,14 +89,39 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         status: t.status,
       }))
 
-    return [...projectHits, ...taskHits]
-  }, [query, projects, tasks])
+    const attachmentHits: SearchResult[] = attachments
+      .map((a): SearchResult | null => {
+        const nameMatch = findMatch(a.file_name)
+        const descriptionMatch = nameMatch ? undefined : findMatch(a.description)
+        if (!nameMatch && !descriptionMatch) return null
+        return {
+          type: 'attachment',
+          key: `attachment-${a.id}`,
+          title: a.file_name,
+          subtitle: descriptionMatch
+            ? excerpt(a.description, descriptionMatch)
+            : a.description || a.project_title,
+          color: a.project_color,
+          to: `/projects/${a.project}`,
+          href: a.file,
+        }
+      })
+      .filter((r): r is SearchResult => r !== null)
+      .slice(0, 6)
+
+    return [...projectHits, ...taskHits, ...attachmentHits]
+  }, [query, projects, tasks, attachments])
 
   // أعد المؤشر لأول نتيجة كلما تغيّر نص البحث
   useEffect(() => setActiveIndex(0), [query])
 
   const open = (result: SearchResult) => {
-    navigate(result.to)
+    // المرفق: افتح الملف نفسه في تبويب جديد؛ والبقية تنقّل داخلي
+    if (result.href) {
+      window.open(result.href, '_blank', 'noopener')
+    } else {
+      navigate(result.to)
+    }
     onClose()
   }
 
@@ -124,7 +161,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="ابحث في المشاريع والتفاصيل والمهام…"
+            placeholder="ابحث في المشاريع والتفاصيل والمهام والمرفقات…"
             className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-slate-400"
           />
           <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
@@ -139,7 +176,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
           )}
           {!query.trim() && (
             <li className="px-3 py-8 text-center text-sm text-slate-400">
-              اكتب للبحث الفوري في كل المشاريع والمهام
+              اكتب للبحث الفوري في كل المشاريع والمهام والمرفقات
             </li>
           )}
           {results.map((result, index) => (
@@ -161,6 +198,8 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
               >
                 {result.type === 'project' ? (
                   <Folder size={17} style={{ color: result.color }} className="shrink-0" />
+                ) : result.type === 'attachment' ? (
+                  <Paperclip size={17} style={{ color: result.color }} className="shrink-0" />
                 ) : (
                   <StatusIcon status={result.status!} size={17} className="shrink-0" />
                 )}

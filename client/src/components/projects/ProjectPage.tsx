@@ -1,12 +1,12 @@
 import {
-  Check, ChevronDown, ChevronUp, Eye, Pencil, Plus, Save, Trash2, Undo2,
+  Check, ChevronDown, ChevronUp, Eye, Folder, Pencil, Plus, Save, Trash2, Undo2,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useProjectMutations, useProjects } from '../../hooks/useProjects'
-import { useTaskMutations, useTasks } from '../../hooks/useTasks'
-import { cn, formatDate, stripHtml } from '../../lib/utils'
+import { useMarkTasksSeen, useTaskMutations, useTasks } from '../../hooks/useTasks'
+import { cn, externalHref, formatDate, stripHtml } from '../../lib/utils'
 import { displayName, type Project, type Task } from '../../types'
 import { RichTextEditor } from '../editor/RichTextEditor'
 import { TaskCard } from '../tasks/TaskCard'
@@ -20,12 +20,15 @@ import { UpdatesSection } from './UpdatesSection'
 export function ProjectPage() {
   const { projectId } = useParams()
   const navigate = useNavigate()
+  // معامل focus من الإشعارات: "task-12" أو "details" أو "updates"
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focus = searchParams.get('focus')
 
   const { data: me } = useMe()
   const isManager = !!me?.is_manager
 
   const { data: projects = [], isLoading, isError } = useProjects()
-  const { data: tasks = [] } = useTasks()
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks()
   const projectMutations = useProjectMutations()
   const taskMutations = useTaskMutations()
 
@@ -35,6 +38,24 @@ export function ProjectPage() {
 
   const project = projects.find((p) => p.id === Number(projectId))
   const projectTasks = tasks.filter((t) => t.project === Number(projectId))
+
+  // مهام المشروع المعروضة تُعلَّم مقروءةً (تُميَّز صفراء حتى المغادرة)
+  useMarkTasksSeen(projectTasks)
+
+  // التمرير إلى العنصر المستهدف القادم من إشعار، ثم تنظيف الرابط بعد انتهاء الوميض
+  useEffect(() => {
+    if (!focus || isLoading || tasksLoading) return
+    const elementId =
+      focus === 'details' ? 'project-details' : focus === 'updates' ? 'project-updates' : focus
+    const scrollTimer = setTimeout(() => {
+      document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+    const cleanTimer = setTimeout(() => setSearchParams({}, { replace: true }), 4000)
+    return () => {
+      clearTimeout(scrollTimer)
+      clearTimeout(cleanTimer)
+    }
+  }, [focus, isLoading, tasksLoading, setSearchParams])
 
   if (isLoading) return <p className="p-10 text-center text-slate-400">جارٍ التحميل…</p>
   if (isError)
@@ -52,17 +73,31 @@ export function ProjectPage() {
   }
 
   const handleDeleteTask = (task: Task) => {
-    if (!confirm(`حذف مهمة «${task.title}»؟`)) return
+    if (!confirm(`نقل مهمة «${task.title}» إلى المحذوفات؟ يمكنك استعادتها أو حذفها نهائياً من هناك.`))
+      return
     taskMutations.remove.mutate(task.id)
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
+    <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
       {/* ترويسة المشروع */}
       <header>
         <div className="flex items-center gap-3">
-          <span className="h-4 w-4 rounded-full" style={{ backgroundColor: project.color }} />
-          <h1 className="flex-1 truncate text-2xl font-bold text-slate-900">{project.title}</h1>
+          <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
+          <h1 className="min-w-0 truncate text-2xl font-bold text-slate-900">{project.title}</h1>
+          {/* أيقونة الفولدر: تفتح «رابط الشير» (مجلد ملفات المشروع) في تبويب جديد */}
+          {project.share_link && (
+            <a
+              href={externalHref(project.share_link)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`فتح مجلد ملفات المشروع\n${project.share_link}`}
+              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
+            >
+              <Folder size={22} className="text-amber-500" fill="#fcd34d" />
+            </a>
+          )}
+          <div className="flex-1" />
           {isManager && (
             <>
               <button
@@ -87,11 +122,11 @@ export function ProjectPage() {
         </p>
       </header>
 
-      {/* التفاصيل الفنية — key يعيد ضبط وضع التحرير عند تبديل المشروع */}
-      <DetailsSection key={project.id} project={project} canManage={isManager} />
-
-      {/* التحديثات: سجل أحداث وإجراءات المشروع */}
-      <UpdatesSection projectId={project.id} />
+      {/* التفاصيل الفنية — key يعيد ضبط وضع التحرير عند تبديل المشروع.
+          التحديثات قسم فرعي داخلها يظهر عند النقر على «عرض المزيد» */}
+      <DetailsSection key={project.id} project={project} canManage={isManager} focus={focus}>
+        <UpdatesSection projectId={project.id} />
+      </DetailsSection>
 
       {/* المهام */}
       <section>
@@ -116,17 +151,23 @@ export function ProjectPage() {
             </p>
           )}
           {projectTasks.map((task) => (
-            <TaskCard
+            // الغلاف يحمل مرساة التمرير ووميض الاستهداف القادمين من الإشعارات
+            <div
               key={task.id}
-              task={task}
-              canManage={isManager}
-              onEdit={() => setEditingTask(task)}
-              onDelete={() => handleDeleteTask(task)}
-              onOpenComments={() => setCommentsTask(task)}
-              onStatusChange={(status) =>
-                taskMutations.update.mutate({ id: task.id, data: { status } })
-              }
-            />
+              id={`task-${task.id}`}
+              className={cn('rounded-xl', focus === `task-${task.id}` && 'focus-flash')}
+            >
+              <TaskCard
+                task={task}
+                canManage={isManager}
+                onEdit={() => setEditingTask(task)}
+                onDelete={() => handleDeleteTask(task)}
+                onOpenComments={() => setCommentsTask(task)}
+                onStatusChange={(status) =>
+                  taskMutations.update.mutate({ id: task.id, data: { status } })
+                }
+              />
+            </div>
           ))}
         </div>
       </section>
@@ -151,18 +192,20 @@ export function ProjectPage() {
   )
 }
 
-/** التفاصيل الفنية: عرض للقراءة (بخلفية شفافة، 6 أسطر + «عرض المزيد») افتراضياً.
+/** التفاصيل الفنية: عرض للقراءة (بخلفية شفافة، سطران + «عرض المزيد») افتراضياً.
+ *  «عرض المزيد» يوسّع النص ويكشف قسم التحديثات الفرعي (children).
  *  المدير يحرر ويحفظ مباشرة؛ الموظف يحرر ويُحفظ تعديله «للمراجعة»،
  *  ثم يعتمده المدير أو يتراجع لآخر نسخة معتمدة. */
-function DetailsSection({ project, canManage }: { project: Project; canManage: boolean }) {
+function DetailsSection({
+  project, canManage, children, focus,
+}: { project: Project; canManage: boolean; children?: ReactNode; focus?: string | null }) {
   const { update, proposeDetails, approveDetails, rejectDetails } = useProjectMutations()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const [clamped, setClamped] = useState(false)
+  // الوصول من إشعار «تحديث مشروع» يفتح القسم تلقائياً ليظهر الهدف
+  const [expanded, setExpanded] = useState(focus === 'updates')
   const [viewingPending, setViewingPending] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
 
   const hasPending = project.has_pending_details
   const showPending = viewingPending && hasPending
@@ -174,13 +217,6 @@ function DetailsSection({ project, canManage }: { project: Project; canManage: b
   useEffect(() => {
     if (!hasPending) setViewingPending(false)
   }, [hasPending])
-
-  // اكتشف ما إذا كان المحتوى أطول من 6 أسطر — عندها فقط يظهر زر «عرض المزيد»
-  useEffect(() => {
-    if (editing || expanded) return
-    const el = contentRef.current
-    if (el) setClamped(el.scrollHeight > el.clientHeight + 1)
-  }, [shownHtml, editing, expanded])
 
   const startEditing = () => {
     // الموظف يكمل من آخر اقتراح معلق إن وُجد؛ المدير يحرر النسخة المعتمدة مباشرة
@@ -218,7 +254,21 @@ function DetailsSection({ project, canManage }: { project: Project; canManage: b
   }
 
   return (
-    <section>
+    // خلفية بيضاء (أفتح من خلفية الصفحة slate-50) وإطار ناعم يعزلان
+    // التفاصيل الفنية عن بقية الأقسام. وهو مطويٌّ يتصرف الكرت كزر:
+    // مؤشر يد + ظل عند التحويم + النقر في أي مكان يوسّعه
+    <section
+      id="project-details"
+      onClick={() => {
+        if (!expanded && !editing) setExpanded(true)
+      }}
+      className={cn(
+        'rounded-xl border border-slate-200/70 bg-white p-4 transition-shadow duration-200',
+        !expanded && !editing && 'cursor-pointer hover:shadow-lg hover:shadow-slate-200/80',
+        // وميض الاستهداف عند الوصول من إشعار «تعديل مقترح»
+        focus === 'details' && 'focus-flash',
+      )}
+    >
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-bold text-slate-700">التفاصيل الفنية</h2>
         {!editing && (
@@ -292,50 +342,69 @@ function DetailsSection({ project, canManage }: { project: Project; canManage: b
             </button>
           </div>
         </>
-      ) : isEmpty ? (
-        <button
-          onClick={startEditing}
-          className="w-full rounded-xl border-2 border-dashed border-slate-200 py-8 text-center text-sm text-slate-400 hover:border-blue-300 hover:text-blue-500"
-        >
-          {canManage
-            ? 'لا توجد تفاصيل بعد — انقر لإضافة المواصفات والروابط'
-            : 'لا توجد تفاصيل بعد — انقر لاقتراح إضافة (تُعرض على المدير للمراجعة)'}
-        </button>
       ) : (
         <>
-          {/* وضع القراءة: خلفية شفافة بنفس تنسيقات المحرر (.rich-text)
-              — وخلفية كهرمانية خفيفة عند عرض النسخة المقترحة.
-              النقر على أي صورة داخل المحتوى يكبّرها */}
-          <div
-            ref={contentRef}
-            onClick={(e) => {
-              const target = e.target as HTMLElement
-              if (target.tagName === 'IMG') setLightbox((target as HTMLImageElement).src)
-            }}
-            className={cn(
-              'rich-text rich-text-view',
-              !expanded && 'line-clamp-6',
-              showPending && 'rounded-lg bg-amber-50/60 p-2',
-            )}
-            dir="rtl"
-            dangerouslySetInnerHTML={{ __html: shownHtml }}
-          />
-          {(clamped || expanded) && (
+          {isEmpty ? (
             <button
-              onClick={() => setExpanded((v) => !v)}
+              onClick={startEditing}
+              className="w-full rounded-xl border-2 border-dashed border-slate-200 py-8 text-center text-sm text-slate-400 hover:border-blue-300 hover:text-blue-500"
+            >
+              {canManage
+                ? 'لا توجد تفاصيل بعد — انقر لإضافة المواصفات والروابط'
+                : 'لا توجد تفاصيل بعد — انقر لاقتراح إضافة (تُعرض على المدير للمراجعة)'}
+            </button>
+          ) : (
+            /* وضع القراءة: سطران افتراضياً بخلفية شفافة بنفس تنسيقات المحرر
+               (.rich-text) — وخلفية كهرمانية خفيفة عند عرض النسخة المقترحة.
+               النقر على أي صورة داخل المحتوى يكبّرها */
+            <div
+              onClick={(e) => {
+                const target = e.target as HTMLElement
+                if (target.tagName === 'IMG') setLightbox((target as HTMLImageElement).src)
+              }}
+              className={cn(
+                'rich-text rich-text-view',
+                !expanded && 'line-clamp-2',
+                showPending && 'rounded-lg bg-amber-50/60 p-2',
+              )}
+              dir="rtl"
+              dangerouslySetInnerHTML={{ __html: shownHtml }}
+            />
+          )}
+
+          {/* «عرض المزيد»: يوسّع النص ويكشف قسم التحديثات الفرعي */}
+          {!expanded && (
+            <button
+              onClick={() => setExpanded(true)}
               className="mt-1 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
             >
-              {expanded ? (
-                <>
-                  <ChevronUp size={15} />
-                  عرض أقل
-                </>
-              ) : (
-                <>
-                  <ChevronDown size={15} />
-                  عرض المزيد
-                </>
+              <ChevronDown size={15} />
+              عرض المزيد
+            </button>
+          )}
+
+          {/* التحديثات — قسم فرعي يظهر فقط بعد «عرض المزيد» */}
+          {expanded && children && (
+            <div
+              id="project-updates"
+              className={cn(
+                'mt-5 border-s-2 border-slate-200 ps-4',
+                // وميض الاستهداف عند الوصول من إشعار «تحديث مشروع»
+                focus === 'updates' && 'focus-flash',
               )}
+            >
+              {children}
+            </div>
+          )}
+
+          {/* «عرض أقل» أسفل القسم كاملاً (بعد التحديثات) — يطوي كل شيء */}
+          {expanded && (
+            <button
+              onClick={() => setExpanded(false)}
+              className="mt-4 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              <ChevronUp size={15} />
+              عرض أقل
             </button>
           )}
         </>

@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from './components/auth/LoginPage'
 import { EmployeesPage } from './components/employees/EmployeesPage'
 import { AppLayout } from './components/layout/AppLayout'
+import { NotificationsPage } from './components/notifications/NotificationsPage'
+import { AttachmentsPage } from './components/projects/AttachmentsPage'
 import { ProjectPage } from './components/projects/ProjectPage'
 import { TrashPage } from './components/projects/TrashPage'
 import { AllTasksPage } from './components/tasks/AllTasksPage'
@@ -25,6 +27,8 @@ export default function App() {
         <Route index element={<Navigate to="/tasks" replace />} />
         <Route path="/tasks" element={<AllTasksPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />
+        <Route path="/attachments" element={<AttachmentsPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route
           path="/employees"
           element={me.is_manager ? <EmployeesPage /> : <Navigate to="/tasks" replace />}

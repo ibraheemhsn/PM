@@ -34,6 +34,9 @@ class Project(models.Model):
     title = models.CharField("العنوان", max_length=200)
     color = models.CharField("اللون", max_length=7, default="#3b82f6")  # HEX color label
     details = models.TextField("التفاصيل الفنية", blank=True, default="")  # HTML من محرر TipTap
+    # رابط مشاركة ملفات المشروع (Drive/OneDrive/مسار شبكة…) — CharField لا URLField
+    # كي يقبل مسارات UNC مثل ‎\\server\share وليس http فقط
+    share_link = models.CharField("رابط الشير", max_length=500, blank=True, default="")
 
     # تعديل مقترح من موظف بانتظار مراجعة المدير — النسخة المعتمدة (details)
     # لا تتغير إلا عند الاعتماد
@@ -99,6 +102,10 @@ class Task(models.Model):
         settings.AUTH_USER_MODEL, blank=True, related_name="assigned_tasks",
         verbose_name="الموظفون المسندون",
     )
+    # حذف ناعم: المهمة تُنقل إلى «المحذوفات» وتبقى قابلة للاستعادة
+    deleted_at = models.DateTimeField(
+        "تاريخ النقل للمحذوفات", null=True, blank=True, db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)  # للترتيب الزمني
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
@@ -123,6 +130,10 @@ class ProjectUpdate(models.Model):
         related_name="project_updates", verbose_name="الكاتب",
     )
     body = models.TextField("النص")
+    # حذف ناعم: التحديث يُنقل إلى «المحذوفات» ويبقى قابلاً للاستعادة
+    deleted_at = models.DateTimeField(
+        "تاريخ النقل للمحذوفات", null=True, blank=True, db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -174,6 +185,44 @@ class TaskCommentRead(models.Model):
 
     def __str__(self):
         return f"قراءة {self.user_id} لمهمة {self.task_id}"
+
+
+class ProjectUpdateRead(models.Model):
+    """آخر وقت اطّلع فيه المستخدم على تحديثات مشروع — أساس مؤشر «غير مقروء».
+    يُحدَّث تلقائياً عند فتح صفحة المشروع (جلب تحديثاته)."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="update_reads")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="update_reads"
+    )
+    last_seen_at = models.DateTimeField("آخر اطلاع")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["project", "user"], name="unique_project_user_read"),
+        ]
+
+    def __str__(self):
+        return f"قراءة {self.user_id} لتحديثات مشروع {self.project_id}"
+
+
+class TaskSeen(models.Model):
+    """المستخدم اطّلع على هذه المهمة — غيابه يعني «مهمة غير مقروءة».
+    يُنشأ للكاتب عند الإنشاء، وللبقية عند ظهور المهمة أمامهم في القائمة."""
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="seen_marks")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="seen_tasks"
+    )
+    seen_at = models.DateTimeField("وقت الاطلاع", auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["task", "user"], name="unique_task_user_seen"),
+        ]
+
+    def __str__(self):
+        return f"اطّلع {self.user_id} على مهمة {self.task_id}"
 
 
 class Notification(models.Model):

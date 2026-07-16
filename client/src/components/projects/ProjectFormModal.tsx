@@ -17,6 +17,7 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
 
   const [title, setTitle] = useState(project?.title ?? '')
   const [color, setColor] = useState(project?.color ?? COLOR_PALETTE[5])
+  const [shareLink, setShareLink] = useState(project?.share_link ?? '')
 
   const saving = create.isPending || update.isPending
 
@@ -24,12 +25,13 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
     e.preventDefault()
     const trimmed = title.trim()
     if (!trimmed || saving) return
+    const data = { title: trimmed, color, share_link: shareLink.trim() }
 
     if (project) {
-      update.mutate({ id: project.id, data: { title: trimmed, color } }, { onSuccess: onClose })
+      update.mutate({ id: project.id, data }, { onSuccess: onClose })
     } else {
       create.mutate(
-        { title: trimmed, color },
+        data,
         {
           onSuccess: (created) => {
             onClose()
@@ -52,6 +54,20 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
             placeholder="مثال: توسعة مصنع الرياض — خط الإنتاج الثاني"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
           />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">رابط الشير</label>
+          <input
+            value={shareLink}
+            onChange={(e) => setShareLink(e.target.value)}
+            dir="ltr"
+            placeholder="https://drive.google.com/… أو \\server\share\project"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            اختياري — رابط مجلد ملفات المشروع؛ تظهر أيقونة فولدر بجانب عنوان المشروع تفتحه.
+          </p>
         </div>
 
         <div>
