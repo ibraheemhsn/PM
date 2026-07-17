@@ -13,6 +13,8 @@ interface KanbanBoardProps {
   tasks: Task[]
   /** المدير: سحب لأي عمود + تعديل/حذف؛ الموظف: «قيد الإنجاز» و«قيد المراجعة» فقط */
   canManage: boolean
+  /** النقر على جسم البطاقة (خارج الأزرار الداخلية) */
+  onOpen: (task: Task) => void
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
   onOpenComments: (task: Task) => void
@@ -22,7 +24,7 @@ interface KanbanBoardProps {
 /** لوحة كانبان: عمود لكل حالة، والسحب والإفلات بينها يغيّر حالة المهمة.
  *  نفس قيود الصلاحيات المفروضة على الخادم تنعكس على أهداف الإفلات. */
 export function KanbanBoard({
-  tasks, canManage, onEdit, onDelete, onOpenComments, onStatusChange,
+  tasks, canManage, onOpen, onEdit, onDelete, onOpenComments, onStatusChange,
 }: KanbanBoardProps) {
   const [draggedId, setDraggedId] = useState<number | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null)
@@ -92,6 +94,7 @@ export function KanbanBoard({
                   canManage={canManage}
                   onDragStart={() => setDraggedId(task.id)}
                   onDragEnd={endDrag}
+                  onOpen={() => onOpen(task)}
                   onEdit={() => onEdit(task)}
                   onDelete={() => onDelete(task)}
                   onOpenComments={() => onOpenComments(task)}
@@ -106,13 +109,14 @@ export function KanbanBoard({
 }
 
 function KanbanCard({
-  task, isDragging, canManage, onDragStart, onDragEnd, onEdit, onDelete, onOpenComments,
+  task, isDragging, canManage, onDragStart, onDragEnd, onOpen, onEdit, onDelete, onOpenComments,
 }: {
   task: Task
   isDragging: boolean
   canManage: boolean
   onDragStart: () => void
   onDragEnd: () => void
+  onOpen: () => void
   onEdit: () => void
   onDelete: () => void
   onOpenComments: () => void
@@ -130,9 +134,11 @@ function KanbanCard({
         onDragStart()
       }}
       onDragEnd={onDragEnd}
+      // النقر (بلا سحب) يفتح البوب اب — السحب الفعلي لا يطلق حدث النقر
+      onClick={onOpen}
       className={cn(
         'group rounded-lg border border-slate-200 border-s-4 p-2.5 shadow-sm transition',
-        draggable && 'cursor-grab active:cursor-grabbing',
+        draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         task.is_unread ? 'bg-yellow-50' : 'bg-white',
         isDone && 'opacity-70',
         isDragging && 'opacity-40 ring-2 ring-blue-300',
@@ -173,6 +179,7 @@ function KanbanCard({
         )}
         <Link
           to={`/projects/${task.project}`}
+          onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1 rounded-full bg-slate-50 px-1.5 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
         >
           <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: task.project_color }} />
@@ -193,7 +200,10 @@ function KanbanCard({
         )}
         <span className="flex-1" />
         <button
-          onClick={onOpenComments}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenComments()
+          }}
           className="relative flex items-center gap-0.5 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
           title={task.has_unread_comments ? 'تعليقات غير مقروءة' : 'التعليقات'}
         >
@@ -206,14 +216,20 @@ function KanbanCard({
         {canManage && (
           <>
             <button
-              onClick={onEdit}
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
               className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-blue-600 group-hover:opacity-100"
               title="تعديل المهمة"
             >
               <Pencil size={13} />
             </button>
             <button
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
               className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-red-600 group-hover:opacity-100"
               title="حذف المهمة"
             >

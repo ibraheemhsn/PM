@@ -30,6 +30,8 @@ interface TaskCardProps {
   showProject?: boolean
   /** المدير: تعديل/حذف + دورة الحالة الكاملة */
   canManage: boolean
+  /** النقر على جسم البطاقة (خارج الأزرار الداخلية) */
+  onOpen?: () => void
   onEdit?: () => void
   onDelete?: () => void
   onOpenComments: () => void
@@ -37,7 +39,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({
-  task, showProject, canManage, onEdit, onDelete, onOpenComments, onStatusChange,
+  task, showProject, canManage, onOpen, onEdit, onDelete, onOpenComments, onStatusChange,
 }: TaskCardProps) {
   const next = canManage ? MANAGER_NEXT[task.status] : EMPLOYEE_NEXT[task.status]
   const isDone = task.status === 'DONE'
@@ -53,8 +55,10 @@ export function TaskCard({
 
   return (
     <div
+      onClick={onOpen}
       className={cn(
         'group flex items-center gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm transition hover:shadow',
+        onOpen && 'cursor-pointer',
         // مهمة لم يطّلع عليها المستخدم بعد — خلفية صفراء فاتحة تميزها
         task.is_unread ? 'bg-yellow-50' : isDone ? 'bg-slate-50' : 'bg-white',
         // المهمة المنجزة باهتة كي لا تشد الانتباه — وتتضح عند التحويم
@@ -63,7 +67,10 @@ export function TaskCard({
       style={{ borderInlineStartColor: isDone ? '#e2e8f0' : task.color || '#e2e8f0' }}
     >
       <button
-        onClick={() => next && onStatusChange(next)}
+        onClick={(e) => {
+          e.stopPropagation() // لا يفتح نافذة التعديل — هذا زر دورة الحالة
+          if (next) onStatusChange(next)
+        }}
         disabled={!next}
         title={
           next
@@ -127,6 +134,7 @@ export function TaskCard({
           {showProject && (
             <Link
               to={`/projects/${task.project}`}
+              onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
             >
               <span
@@ -157,7 +165,10 @@ export function TaskCard({
 
       <div className="flex shrink-0 items-center gap-1">
         <button
-          onClick={onOpenComments}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenComments()
+          }}
           className="relative flex items-center gap-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
           title={task.has_unread_comments ? 'تعليقات غير مقروءة' : 'التعليقات'}
         >
@@ -170,7 +181,10 @@ export function TaskCard({
         </button>
         {canManage && onEdit && (
           <button
-            onClick={onEdit}
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit()
+            }}
             className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-blue-600 group-hover:opacity-100"
             title="تعديل المهمة"
           >
@@ -179,7 +193,10 @@ export function TaskCard({
         )}
         {canManage && onDelete && (
           <button
-            onClick={onDelete}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
             className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-red-600 group-hover:opacity-100"
             title="حذف المهمة"
           >

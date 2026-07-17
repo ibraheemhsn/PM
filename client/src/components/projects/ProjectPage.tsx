@@ -239,6 +239,8 @@ export function ProjectPage() {
               <TaskCard
                 task={task}
                 canManage={isManager}
+                // نقر البطاقة: تعديل للمدير — وتعليقات للموظف (لا صلاحية تعديل له)
+                onOpen={() => (isManager ? setEditingTask(task) : setCommentsTask(task))}
                 onEdit={() => setEditingTask(task)}
                 onDelete={() => handleDeleteTask(task)}
                 onOpenComments={() => setCommentsTask(task)}

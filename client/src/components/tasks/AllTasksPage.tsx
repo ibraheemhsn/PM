@@ -463,7 +463,10 @@ export function AllTasksPage() {
       {/* تقويم شهري: المهام على أيام استحقاقها */}
       {layout === 'calendar' && (
         <div className="px-6 py-6">
-          <CalendarView tasks={visibleTasks} />
+          <CalendarView
+            tasks={visibleTasks}
+            onOpen={(task) => (isManager ? setEditingTask(task) : setCommentsTask(task))}
+          />
         </div>
       )}
 
@@ -473,6 +476,8 @@ export function AllTasksPage() {
           <KanbanBoard
             tasks={boardTasks}
             canManage={isManager}
+            // نقر البطاقة: تعديل للمدير — وتعليقات للموظف
+            onOpen={(task) => (isManager ? setEditingTask(task) : setCommentsTask(task))}
             onEdit={(task) => setEditingTask(task)}
             onDelete={handleDelete}
             onOpenComments={(task) => setCommentsTask(task)}
@@ -498,6 +503,10 @@ export function AllTasksPage() {
               task={item.task}
               showProject
               canManage={isManager}
+              // نقر البطاقة: تعديل للمدير — وتعليقات للموظف (لا صلاحية تعديل له)
+              onOpen={() =>
+                isManager ? setEditingTask(item.task) : setCommentsTask(item.task)
+              }
               onEdit={() => setEditingTask(item.task)}
               onDelete={() => handleDelete(item.task)}
               onOpenComments={() => setCommentsTask(item.task)}

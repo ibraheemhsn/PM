@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { isTaskOverdue, type Task } from '../../types'
 
@@ -14,8 +13,10 @@ const toKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 /** تقويم شهري: كل مهمة تظهر في يوم استحقاقها — المتأخرة حمراء والمنجزة باهتة.
- *  النقر على مهمة ينقل لمشروعها مع الوميض عليها. */
-export function CalendarView({ tasks }: { tasks: Task[] }) {
+ *  النقر على مهمة يفتح بوب اب التعديل (أو التعليقات للموظف). */
+export function CalendarView({
+  tasks, onOpen,
+}: { tasks: Task[]; onOpen: (task: Task) => void }) {
   const [monthDate, setMonthDate] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -127,12 +128,12 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
               </span>
 
               {dayTasks.map((task) => (
-                <Link
+                <button
                   key={task.id}
-                  to={`/projects/${task.project}?focus=task-${task.id}`}
+                  onClick={() => onOpen(task)}
                   title={`${task.title} — ${task.project_title}`}
                   className={cn(
-                    'block truncate rounded border-s-2 px-1.5 py-0.5 text-[11px] leading-snug',
+                    'block w-full truncate rounded border-s-2 px-1.5 py-0.5 text-start text-[11px] leading-snug',
                     isTaskOverdue(task)
                       ? 'bg-red-50 font-medium text-red-700 hover:bg-red-100'
                       : task.status === 'DONE'
@@ -142,7 +143,7 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
                   style={{ borderInlineStartColor: task.color || task.project_color }}
                 >
                   {task.title}
-                </Link>
+                </button>
               ))}
             </div>
           )
