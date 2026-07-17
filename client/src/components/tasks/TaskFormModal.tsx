@@ -6,9 +6,9 @@ import { useTags, useTaskMutations } from '../../hooks/useTasks'
 import { useUsers } from '../../hooks/useUsers'
 import { cn } from '../../lib/utils'
 import {
-  displayName, PRIORITY_COLORS, PRIORITY_LABELS, STATUS_LABELS,
-  TASK_PRIORITIES, TASK_STATUSES,
-  type Task, type TaskPriority, type TaskStatus,
+  displayName, PRIORITY_COLORS, PRIORITY_LABELS, RECURRENCE_LABELS,
+  STATUS_LABELS, TASK_PRIORITIES, TASK_RECURRENCES, TASK_STATUSES,
+  type Task, type TaskPriority, type TaskRecurrence, type TaskStatus,
 } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { ColorPicker } from '../ui/ColorPicker'
@@ -37,6 +37,7 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'OPEN')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'MEDIUM')
   const [dueDate, setDueDate] = useState(task?.due_date ?? '')
+  const [recurrence, setRecurrence] = useState<TaskRecurrence>(task?.recurrence ?? 'NONE')
   const [color, setColor] = useState(task?.color ?? '')
   const [tags, setTags] = useState<string[]>(task?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
@@ -80,6 +81,7 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
       status: isManager ? status : ('SUGGESTED' as TaskStatus),
       priority,
       due_date: dueDate || null,
+      recurrence,
       color,
       tags: finalTags,
       assignees: isManager ? assignees : [],
@@ -218,6 +220,25 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
               onChange={(e) => setDueDate(e.target.value)}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">التكرار</label>
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value as TaskRecurrence)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+            >
+              {TASK_RECURRENCES.map((r) => (
+                <option key={r} value={r}>
+                  {RECURRENCE_LABELS[r]}
+                </option>
+              ))}
+            </select>
+            {recurrence !== 'NONE' && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                عند إنجازها تُنشأ الدورة التالية تلقائياً باستحقاق مُرحَّل.
+              </p>
+            )}
           </div>
         </div>
 

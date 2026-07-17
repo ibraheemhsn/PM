@@ -5,6 +5,7 @@ Roles enforced server-side (not just in the UI):
 - الموظف: يرى المهام المسندة إليه فقط، يغيّر حالتها إلى «قيد الإنجاز» أو
   «قيد المراجعة» فقط، ويعلّق عليها.
 """
+import calendar
 import re
 from datetime import timedelta
 
@@ -63,6 +64,19 @@ def _unread_comment_task_ids(user, task_ids=None):
         for row in latest_by_task
         if row["task_id"] not in last_seen or row["latest"] > last_seen[row["task_id"]]
     }
+
+
+def _advance_date(date, recurrence):
+    """التاريخ التالي لمهمة متكررة — الشهري يقص لنهاية الشهر عند اللزوم
+    (31 يناير ← 28/29 فبراير)."""
+    if recurrence == Task.Recurrence.DAILY:
+        return date + timedelta(days=1)
+    if recurrence == Task.Recurrence.WEEKLY:
+        return date + timedelta(weeks=1)
+    year = date.year + (1 if date.month == 12 else 0)
+    month = 1 if date.month == 12 else date.month + 1
+    day = min(date.day, calendar.monthrange(year, month)[1])
+    return date.replace(year=year, month=month, day=day)
 
 
 # ===== سجل النشاط =====
@@ -622,6 +636,14 @@ class TaskViewSet(viewsets.ModelViewSet):
         elif not added:
             _log(task.project, request.user, f"عدّل المهمة «{task.title}»")
 
+        # مهمة متكررة أُنجزت الآن ← أنشئ دورتها التالية تلقائياً
+        if (
+            task.status == Task.Status.DONE
+            and old_status != Task.Status.DONE
+            and task.recurrence != Task.Recurrence.NONE
+        ):
+            self._spawn_next_occurrence(task, request.user)
+
         # إشعار تغيّر الحالة: الموظف يرفع للمراجعة → المدراء،
         # والمدير يغيّر الحالة → الموظفون المسندون
         if task.status != old_status:
@@ -644,6 +666,27 @@ class TaskViewSet(viewsets.ModelViewSet):
                     task=task, project=task.project,
                 )
         return response
+
+    def _spawn_next_occurrence(self, task, actor):
+        """استنساخ مهمة متكررة أُنجزت: نفس البيانات والمسندين، الحالة مفتوحة،
+        والاستحقاق مُرحَّل حسب دورية التكرار (أساسه استحقاقها أو اليوم)."""
+        next_due = _advance_date(task.due_date or timezone.localdate(), task.recurrence)
+        clone = Task.objects.create(
+            project=task.project, title=task.title, priority=task.priority,
+            due_date=next_due, color=task.color, recurrence=task.recurrence,
+        )
+        clone.tags.set(task.tags.all())
+        clone.assignees.set(task.assignees.all())
+        _log(
+            task.project, actor,
+            f"أُنشئت الدورة التالية للمهمة المتكررة «{task.title}» (استحقاقها {next_due})",
+        )
+        _notify(
+            clone.assignees.all(), actor=actor,
+            kind=Notification.Kind.TASK_ASSIGNED,
+            message=f"دورة جديدة من المهمة المتكررة «{clone.title}» — استحقاقها {next_due}",
+            task=clone, project=clone.project,
+        )
 
     def destroy(self, request, *args, **kwargs):
         """حذف ناعم: تُنقل المهمة إلى المحذوفات بدل الحذف النهائي."""

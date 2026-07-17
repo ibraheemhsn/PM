@@ -1,10 +1,10 @@
-import { CalendarDays, Flag, MessageCircle, Pencil, Trash2 } from 'lucide-react'
+import { CalendarDays, Flag, MessageCircle, Pencil, Repeat, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, formatDay } from '../../lib/utils'
 import {
-  isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS, STATUS_LABELS, TASK_STATUSES,
-  type Task, type TaskStatus,
+  isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS, RECURRENCE_LABELS,
+  STATUS_LABELS, TASK_STATUSES, type Task, type TaskStatus,
 } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { StatusIcon } from './StatusIcon'
@@ -164,6 +164,14 @@ function KanbanCard({
           >
             <Flag size={11} fill="currentColor" />
             {PRIORITY_LABELS[task.priority]}
+          </span>
+        )}
+        {task.recurrence !== 'NONE' && (
+          <span
+            className="flex items-center gap-0.5 text-sky-600"
+            title={`مهمة متكررة ${RECURRENCE_LABELS[task.recurrence]}`}
+          >
+            <Repeat size={11} />
           </span>
         )}
         {task.due_date && (

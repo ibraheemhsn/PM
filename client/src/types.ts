@@ -4,6 +4,8 @@ export type TaskStatus = 'SUGGESTED' | 'OPEN' | 'IN_PROGRESS' | 'REVIEW' | 'DONE
 
 export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 
+export type TaskRecurrence = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+
 export interface UserBrief {
   id: number
   username: string
@@ -61,6 +63,8 @@ export interface Task {
   priority: TaskPriority
   /** تاريخ الاستحقاق (YYYY-MM-DD) — غير المنجزة بعده تُعد متأخرة */
   due_date: string | null
+  /** عند إنجاز المتكررة تُنشأ دورتها التالية تلقائياً */
+  recurrence: TaskRecurrence
   color: string
   tags: string[]
   assignees: UserBrief[]
@@ -221,6 +225,15 @@ export const TASK_PRIORITIES = Object.keys(PRIORITY_LABELS) as TaskPriority[]
 
 /** ترتيب الأولوية للفرز — الأعلى أولاً */
 export const PRIORITY_RANK: Record<TaskPriority, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
+
+export const RECURRENCE_LABELS: Record<TaskRecurrence, string> = {
+  NONE: 'بلا تكرار',
+  DAILY: 'يومياً',
+  WEEKLY: 'أسبوعياً',
+  MONTHLY: 'شهرياً',
+}
+
+export const TASK_RECURRENCES = Object.keys(RECURRENCE_LABELS) as TaskRecurrence[]
 
 /** المهمة متأخرة: لها استحقاق مضى ولم تُنجز (مقارنة نصية لصيغة ISO تكفي) */
 export const isTaskOverdue = (task: Task): boolean =>

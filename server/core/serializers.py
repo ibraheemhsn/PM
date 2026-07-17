@@ -141,9 +141,9 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             "id", "project", "project_title", "project_color", "project_archived",
-            "title", "status", "priority", "due_date", "color", "tags", "assignees",
-            "comments_count", "has_unread_comments", "is_unread", "deleted_at",
-            "created_at", "updated_at",
+            "title", "status", "priority", "due_date", "recurrence", "color", "tags",
+            "assignees", "comments_count", "has_unread_comments", "is_unread",
+            "deleted_at", "created_at", "updated_at",
         ]
         # الحذف الناعم يُدار حصراً عبر destroy/restore/purge
         read_only_fields = ["deleted_at"]

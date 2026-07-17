@@ -166,3 +166,99 @@ client/src/
 13.	الانتقال إلى PostgreSQL + نسخ احتياطي مجدول — SQLite للتطوير فقط، ومسار الترقية جاهز في الكود (متغيرات البيئة فقط).
 14.	PWA — تثبيت على الجوال مع إشعارات Push حقيقية بدل الاعتماد على فتح المتصفح (الفحص الدوري الحالي يعمل فقط والتبويب مفتوح).
 لو طلبت رأيي بترتيب التنفيذ: 1 ثم 3 ثم 2 — ثلاثتها تحوّل الأداة من «قائمة مهام» إلى «إدارة أعمال» فعلياً، وكلها قابلة للتنفيذ على البنية الحالية دون إعادة هيكلة. قل لي أيها تريد وأبدأ.
+
+
+
+
+
+تعليمات النشر 
+المرحلة 0 — على جهازك: ارفع الكود إلى GitHub
+لديك مستودع github.com/ibraheemhsn/PM وفيه 12 ملفاً غير مرفوع. من PowerShell:
+cd c:\Projects\PM
+git add -A
+git commit -m "prepare production deploy"
+git push
+إن كان المستودع خاصاً (يُفضَّل): أنشئ Token للقراءة من GitHub: Settings ← Developer settings ← Fine-grained tokens ← Generate (صلاحية Contents: Read على مستودع PM فقط) — ستحتاجه في المرحلة 3.
+المرحلة 1 — إنشاء الخادم في DigitalOcean
+1.	سجّل في digitalocean.com ثم Create ← Droplet.
+2.	الاختيارات:
+o	Region: Frankfurt (الأقرب للعراق).
+o	Image: Ubuntu 24.04 LTS.
+o	Size: Basic ← Regular ← $6/شهر (1GB) يكفي مع خطوة الـ swap أدناه (أو $12/2GB لراحة أكبر).
+o	Authentication: اختر SSH Key، وولّد مفتاحاً على جهازك إن لم يوجد:
+o	ssh-keygen -t ed25519    # اضغط Enter للكل
+o	type $env:USERPROFILE\.ssh\id_ed25519.pub
+انسخ الناتج والصقه في DigitalOcean.
+3.	أنشئ الدروبلت وخذ عنوان IP الظاهر.
+المرحلة 2 — DNS من لوحة HostGator
+في cPanel الخاص بـ alfakharco.com ← Zone Editor ← Add Record:
+Type	Name	Address
+A	pm	عنوان IP للدروبلت
+ينتشر خلال دقائق غالباً. تحقق من جهازك: nslookup pm.alfakharco.com حتى يُظهر الـ IP.
+
+المرحلة 3 — على الخادم: التثبيت والتشغيل
+ادخل للخادم: ssh root@عنوان-IP ثم نفّذ بالترتيب:
+# 1) ذاكرة تبادلية (ضرورية لبناء الواجهة على 1GB)
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+# 2) جدار ناري أساسي
+ufw allow OpenSSH && ufw allow 80,443/tcp && ufw --force enable
+
+# 3) Docker
+curl -fsSL https://get.docker.com | sh
+
+# 4) جلب المشروع (لمستودع خاص ضع التوكن قبل @)
+git clone https://TOKEN@github.com/ibraheemhsn/PM.git /srv/pm
+cd /srv/pm
+
+# 5) ملف الإعدادات
+cp .env.example .env
+ولّد المفاتيح (سطران — انسخ نواتجهما):
+# مفتاح Django السري
+openssl rand -base64 48
+
+# مفاتيح إشعارات Push (يطبع سطري VAPID جاهزين للصق)
+docker run --rm python:3.12-slim sh -c "pip -q install cryptography && python -c \"
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+import base64
+k = ec.generate_private_key(ec.SECP256R1())
+print('VAPID_PRIVATE_KEY=' + base64.urlsafe_b64encode(k.private_numbers().private_value.to_bytes(32,'big')).rstrip(b'=').decode())
+print('VAPID_PUBLIC_KEY=' + base64.urlsafe_b64encode(k.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)).rstrip(b'=').decode())\""
+ثم حرّر الملف nano .env واضبط:
+SITE_DOMAIN=pm.alfakharco.com
+SITE_ADDRESS=pm.alfakharco.com
+DJANGO_SECRET_KEY=<ناتج openssl>
+POSTGRES_PASSWORD=<كلمة مرور قوية من اختيارك>
+VAPID_PUBLIC_KEY=<من الأمر أعلاه>
+VAPID_PRIVATE_KEY=<من الأمر أعلاه>
+VAPID_ADMIN_EMAIL=baitydev3@gmail.com
+شغّل كل شيء (قاعدة بيانات + خلفية + واجهة + HTTPS تلقائي):
+docker compose up -d --build     # يستغرق دقائق أول مرة
+docker compose ps                # الثلاثة يجب أن تكون running
+المرحلة 4 — البيانات: اختر أحد مسارين
+(أ) بداية نظيفة — أنشئ حساب المدير:
+docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py shell -c "from core.models import User; u=User.objects.get(username='admin'); u.is_manager=True; u.save()"
+(ب) نقل بياناتك الحالية (المشاريع والمستخدمون بكلمات مرورهم والمرفقات) — على جهازك:
+cd c:\Projects\PM\server
+$env:PYTHONUTF8='1'
+.venv\Scripts\python.exe manage.py dumpdata core --indent 2 -o data.json
+scp data.json root@IP:/srv/pm/
+scp -r media root@IP:/srv/pm/dev-media
+ثم على الخادم:
+cd /srv/pm
+docker compose cp data.json backend:/app/data.json
+docker compose exec backend python manage.py loaddata /app/data.json
+docker compose cp dev-media/. backend:/app/media/
+المرحلة 5 — التحقق
+افتح https://pm.alfakharco.com — يجب أن ترى صفحة الدخول بقفل HTTPS. جرّب: تسجيل الدخول، رفع مرفق، تثبيت التطبيق (أيقونة التثبيت في كروم / «إضافة للشاشة الرئيسية» في الجوال)، وتفعيل الإشعارات من الجرس — الـ Push سيعمل فعلياً الآن لأن HTTPS متوفر.
+________________________________________
+لاحقاً
+•	تحديث التطبيق بعد أي تعديل: على جهازك git push، وعلى الخادم:
+•	cd /srv/pm && git pull && docker compose up -d --build
+•	نسخة احتياطية (يُنصح بها أسبوعياً على الأقل):
+•	docker compose exec db pg_dump -U pmuser pm > backup-$(date +%F).sql
+•	السجلات عند أي مشكلة: docker compose logs -f backend
+إن تعثرت أي خطوة، الصق لي مخرجاتها وأشخّصها معك.

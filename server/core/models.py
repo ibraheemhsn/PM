@@ -112,6 +112,12 @@ class Task(models.Model):
         MEDIUM = "MEDIUM", "متوسطة"
         LOW = "LOW", "منخفضة"
 
+    class Recurrence(models.TextChoices):
+        NONE = "NONE", "بلا تكرار"
+        DAILY = "DAILY", "يومياً"
+        WEEKLY = "WEEKLY", "أسبوعياً"
+        MONTHLY = "MONTHLY", "شهرياً"
+
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="tasks", verbose_name="المشروع"
     )
@@ -125,6 +131,10 @@ class Task(models.Model):
     )
     # تاريخ الاستحقاق «يُنجز قبل» — المهمة غير المنجزة بعده تُعد متأخرة
     due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True, db_index=True)
+    # مهمة متكررة: عند إنجازها تُنشأ دورتها التالية تلقائياً باستحقاق مُرحَّل
+    recurrence = models.CharField(
+        "التكرار", max_length=10, choices=Recurrence.choices, default=Recurrence.NONE
+    )
     color = models.CharField("اللون", max_length=7, blank=True, default="")
     tags = models.ManyToManyField(Tag, blank=True, related_name="tasks", verbose_name="الوسوم")
     assignees = models.ManyToManyField(

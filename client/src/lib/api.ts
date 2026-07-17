@@ -4,7 +4,7 @@
  *    (تُزرع عند نداء /auth/me/ أول مرة) مع كل طلب غير GET. */
 import type {
   ActivityEntry, AppNotification, Attachment, Project, ProjectUpdate, Tag,
-  Task, TaskComment, TaskPriority, TaskStatus, User, UserBrief,
+  Task, TaskComment, TaskPriority, TaskRecurrence, TaskStatus, User, UserBrief,
 } from '../types'
 
 export interface ProjectInput {
@@ -28,6 +28,7 @@ export interface TaskInput {
   priority: TaskPriority
   /** null لمسح تاريخ الاستحقاق */
   due_date: string | null
+  recurrence: TaskRecurrence
   color: string
   tags: string[]
   assignees: number[]
