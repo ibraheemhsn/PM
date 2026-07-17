@@ -12,6 +12,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "django-insecure-dev-only-change-me-before-production"
 )
+
+# مفاتيح Web Push (VAPID) — قيم تطوير افتراضية؛ ولّد مفاتيحك الخاصة للإنتاج
+# وبدّلها عبر متغيرات البيئة
+VAPID_PUBLIC_KEY = os.environ.get(
+    "VAPID_PUBLIC_KEY",
+    "BOcJhUo9jKEst57Wvwlg2QSP1-1PXCqzA9oYobAyXc6WgANJoyefPDvWVV0LdYv91vY6tg9SxKoVbn6kxPAd2QM",
+)
+VAPID_PRIVATE_KEY = os.environ.get(
+    "VAPID_PRIVATE_KEY", "CYLUsb-c60goUySOhG_LUV0bnx1XWF7GsYub-_rMYos"
+)
+VAPID_ADMIN_EMAIL = os.environ.get("VAPID_ADMIN_EMAIL", "baitydev3@gmail.com")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",") if h]
 # مطلوب في الإنتاج خلف HTTPS، مثال: https://pm.example.com

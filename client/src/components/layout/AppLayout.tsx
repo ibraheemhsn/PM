@@ -1,6 +1,7 @@
 import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useMatch } from 'react-router-dom'
+import { enablePush, registerServiceWorker } from '../../lib/pwa'
 import { cn } from '../../lib/utils'
 import { CommandPalette } from '../search/CommandPalette'
 import { TaskFormModal } from '../tasks/TaskFormModal'
@@ -15,6 +16,16 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
   useEffect(() => setSidebarOpen(false), [location.pathname])
+
+  // PWA: سجّل الـ Service Worker، وإن كان إذن الإشعارات ممنوحاً أصلاً
+  // فأعد مزامنة اشتراك Web Push لهذا الجهاز (يتجدد endpoint أحياناً)
+  useEffect(() => {
+    void registerServiceWorker().then(() => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        void enablePush()
+      }
+    })
+  }, [])
 
   // إن كنا داخل صفحة مشروع، يصبح هو الافتراضي في نموذج المهمة الجديدة
   const projectMatch = useMatch('/projects/:projectId')

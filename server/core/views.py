@@ -22,11 +22,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.conf import settings
+
 from .models import (
     ActivityLog, Attachment, Notification, Project, ProjectUpdate,
-    ProjectUpdateRead, Tag, Task, TaskComment, TaskCommentRead, TaskSeen, User,
+    ProjectUpdateRead, PushSubscription, Tag, Task, TaskComment,
+    TaskCommentRead, TaskSeen, User,
 )
 from .permissions import IsManager, IsManagerOrReadOnly, is_manager
+from .push import send_push
 from .thumbnails import ATTACHMENT_THUMB_SIZE, is_image_name, make_thumbnail, thumb_name
 from .serializers import (
     ActivityLogSerializer, AttachmentSerializer, ImageUploadSerializer,
@@ -103,7 +107,8 @@ def _managers():
 
 
 def _notify(recipients, *, actor, kind, message, task=None, project=None):
-    """أنشئ إشعاراً لكل مستلم — مع استبعاد الفاعل نفسه وإزالة التكرار."""
+    """أنشئ إشعاراً لكل مستلم — مع استبعاد الفاعل نفسه وإزالة التكرار.
+    يُرسل أيضاً إشعار Web Push يصل للجهاز حتى والتطبيق مغلق."""
     unique = {r.id: r for r in recipients if r.id != actor.id}
     Notification.objects.bulk_create(
         Notification(
@@ -112,6 +117,10 @@ def _notify(recipients, *, actor, kind, message, task=None, project=None):
         )
         for r in unique.values()
     )
+    url = "/"
+    if project:
+        url = f"/projects/{project.id}" + (f"?focus=task-{task.id}" if task else "")
+    send_push(unique.values(), message, url)
 
 
 def _generate_due_reminders():
@@ -136,11 +145,16 @@ def _generate_due_reminders():
                 recipient=assignee, task=task, kind=Notification.Kind.DUE_SOON
             ).exists()
             if not already:
+                message = f"مهمة «{task.title}» يحين استحقاقها {when}"
                 Notification.objects.create(
                     recipient=assignee, actor=None,
                     kind=Notification.Kind.DUE_SOON,
-                    message=f"مهمة «{task.title}» يحين استحقاقها {when}",
+                    message=message,
                     task=task, project=task.project,
+                )
+                send_push(
+                    [assignee], message,
+                    url=f"/projects/{task.project_id}?focus=task-{task.id}",
                 )
 
 
@@ -174,6 +188,37 @@ class NotificationViewSet(viewsets.GenericViewSet):
         if ids := request.data.get("ids"):
             qs = qs.filter(id__in=ids)
         qs.update(is_read=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ===== اشتراكات Web Push =====
+
+class PushKeyView(APIView):
+    """المفتاح العام (VAPID) الذي يشترك به المتصفح في خدمة الدفع."""
+
+    def get(self, request):
+        return Response({"public_key": settings.VAPID_PUBLIC_KEY})
+
+
+class PushSubscribeView(APIView):
+    """حفظ اشتراك دفع لهذا المتصفح — endpoint فريد، وتكراره يحدّث صاحبه."""
+
+    def post(self, request):
+        data = request.data or {}
+        endpoint = data.get("endpoint")
+        keys = data.get("keys") or {}
+        if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
+            return Response(
+                {"detail": "بيانات الاشتراك غير مكتملة."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={
+                "user": request.user,
+                "p256dh": keys["p256dh"],
+                "auth": keys["auth"],
+            },
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

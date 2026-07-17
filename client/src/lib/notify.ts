@@ -1,4 +1,5 @@
 /** تنبيهات المتصفح: صوت مولَّد بـ Web Audio (بلا ملفات) + Notification API. */
+import { enablePush, PUSH_ENABLED_FLAG } from './pwa'
 
 let audioContext: AudioContext | null = null
 
@@ -31,16 +32,20 @@ export function playNotificationSound() {
   }
 }
 
-/** اطلب إذن إشعارات المتصفح إن لم يُحسم بعد. */
+/** اطلب إذن إشعارات المتصفح إن لم يُحسم بعد — وعند المنح فعّل Web Push. */
 export function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
-    void Notification.requestPermission()
+    void Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') void enablePush()
+    })
   }
 }
 
-/** أظهر إشعار متصفح (يظهر حتى والنافذة في الخلفية) — يتطلب إذناً ممنوحاً. */
+/** أظهر إشعار متصفح (يظهر حتى والنافذة في الخلفية) — يتطلب إذناً ممنوحاً.
+ *  يُتخطى عندما يكون Web Push مفعّلاً كي لا يصل الإشعار مرتين. */
 export function showBrowserNotification(title: string, body: string) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return
+  if (localStorage.getItem(PUSH_ENABLED_FLAG)) return
   try {
     const notification = new Notification(title, { body, dir: 'rtl', lang: 'ar', tag: `pm-${Date.now()}` })
     notification.onclick = () => {

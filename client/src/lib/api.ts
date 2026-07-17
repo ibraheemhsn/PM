@@ -206,6 +206,15 @@ export const api = {
     /** سجل النشاطات عبر كل المشاريع: آخر 300 حدث، الأحدث أولاً */
     listAll: () => request<ActivityEntry[]>('/activity/?limit=300'),
   },
+  push: {
+    /** المفتاح العام (VAPID) للاشتراك في خدمة الدفع */
+    key: () => request<{ public_key: string }>('/push/key/'),
+    subscribe: (subscription: unknown) =>
+      request<void>('/push/subscribe/', {
+        method: 'POST',
+        body: JSON.stringify(subscription),
+      }),
+  },
   notifications: {
     /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */
     list: (limit?: number) =>

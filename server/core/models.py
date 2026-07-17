@@ -322,6 +322,27 @@ class ActivityLog(models.Model):
         return f"نشاط على {self.project_id}: {self.message[:40]}"
 
 
+class PushSubscription(models.Model):
+    """اشتراك Web Push لمتصفح/جهاز واحد — المستخدم قد يملك عدة اشتراكات.
+    الاشتراكات الميتة (404/410 من خدمة الدفع) تُحذف تلقائياً عند الإرسال."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="push_subscriptions", verbose_name="المستخدم",
+    )
+    endpoint = models.TextField("نقطة النهاية", unique=True)
+    p256dh = models.CharField("مفتاح p256dh", max_length=200)
+    auth = models.CharField("مفتاح auth", max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "اشتراك دفع"
+        verbose_name_plural = "اشتراكات الدفع"
+
+    def __str__(self):
+        return f"اشتراك دفع لـ {self.user_id}"
+
+
 class Attachment(models.Model):
     """مرفق تابع لمشروع: صورة أو PDF أو ملف نصي، مع وصف وتصنيف واسم الرافع."""
 
