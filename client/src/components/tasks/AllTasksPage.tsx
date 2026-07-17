@@ -197,7 +197,7 @@ export function AllTasksPage() {
   return (
     <div>
       {/* شريط الفلاتر والأدوات */}
-      <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 sm:px-6 py-4">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">
             {isManager ? 'جميع المهام' : 'مهامي'}{' '}
@@ -462,7 +462,7 @@ export function AllTasksPage() {
 
       {/* تقويم شهري: المهام على أيام استحقاقها */}
       {layout === 'calendar' && (
-        <div className="px-6 py-6">
+        <div className="px-4 sm:px-6 py-6">
           <CalendarView
             tasks={visibleTasks}
             onOpen={(task) => (isManager ? setEditingTask(task) : setCommentsTask(task))}
@@ -472,7 +472,7 @@ export function AllTasksPage() {
 
       {/* لوحة كانبان: عمود لكل حالة مع سحب وإفلات */}
       {layout === 'board' && (
-        <div className="px-6 py-6">
+        <div className="px-4 sm:px-6 py-6">
           <KanbanBoard
             tasks={boardTasks}
             canManage={isManager}
@@ -490,7 +490,7 @@ export function AllTasksPage() {
 
       {/* الخلاصة الموحدة: مهام وتحديثات */}
       {layout === 'list' && (
-      <div className="mx-auto max-w-6xl space-y-2 px-6 py-6">
+      <div className="mx-auto max-w-6xl space-y-2 px-4 sm:px-6 py-6">
         {feed.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
             {hasActiveFilters ? 'لا توجد عناصر مطابقة للفلاتر' : 'لا توجد عناصر بعد'}

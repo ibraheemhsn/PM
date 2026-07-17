@@ -56,7 +56,7 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
   }
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-e border-slate-800 bg-slate-900 text-slate-100">
+    <aside className="flex h-full w-72 shrink-0 flex-col border-e border-slate-800 bg-slate-900 text-slate-100">
       {/* الترويسة + أيقونة البحث الشامل */}
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-4">
         <div>

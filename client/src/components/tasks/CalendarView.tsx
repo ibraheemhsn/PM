@@ -89,6 +89,9 @@ export function CalendarView({
         )}
       </div>
 
+      {/* على الجوال: الشبكة تحافظ على عرض أدنى وتتمرر أفقياً */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[640px]">
       {/* رؤوس أيام الأسبوع */}
       <div className="grid grid-cols-7 border-b border-slate-200 pb-1 text-center">
         {WEEKDAYS.map((day) => (
@@ -148,6 +151,8 @@ export function CalendarView({
             </div>
           )
         })}
+      </div>
+        </div>
       </div>
     </div>
   )

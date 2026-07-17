@@ -86,7 +86,7 @@ export function DashboardPage() {
     stats.totals.SUGGESTED + stats.totals.OPEN + stats.totals.IN_PROGRESS + stats.totals.REVIEW
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 flex items-center gap-2">
         <LayoutDashboard size={20} className="text-slate-400" />
         <h1 className="text-xl font-bold text-slate-900">لوحة الإحصائيات</h1>

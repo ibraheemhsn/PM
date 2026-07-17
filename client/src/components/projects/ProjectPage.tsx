@@ -92,10 +92,10 @@ export function ProjectPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
+    <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
       {/* ترويسة المشروع */}
       <header>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
           <h1 className="min-w-0 truncate text-2xl font-bold text-slate-900">{project.title}</h1>
           {/* روابط المشروع السريعة — كل أيقونة تفتح رابطها في تبويب جديد */}
