@@ -1,14 +1,18 @@
-import { MessageCircle, Pencil, Trash2 } from 'lucide-react'
+import { CalendarDays, Flag, MessageCircle, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { cn, formatDate } from '../../lib/utils'
-import { STATUS_LABELS, type Task, type TaskStatus } from '../../types'
+import { cn, formatDate, formatDay } from '../../lib/utils'
+import {
+  isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS, STATUS_LABELS,
+  type Task, type TaskStatus,
+} from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { StatusIcon } from './StatusIcon'
 
 /** المدير يدوّر الحالة عبر الدورة الكاملة، والموظف بين «قيد الإنجاز» و«قيد المراجعة» فقط
  *  (القيود مفروضة على الخادم أيضاً). */
 const MANAGER_NEXT: Record<TaskStatus, TaskStatus> = {
+  SUGGESTED: 'OPEN', // اعتماد المهمة المقترحة
   OPEN: 'IN_PROGRESS',
   IN_PROGRESS: 'REVIEW',
   REVIEW: 'DONE',
@@ -37,6 +41,7 @@ export function TaskCard({
 }: TaskCardProps) {
   const next = canManage ? MANAGER_NEXT[task.status] : EMPLOYEE_NEXT[task.status]
   const isDone = task.status === 'DONE'
+  const overdue = isTaskOverdue(task)
 
   // اكتشاف تجاوز العنوان لسطرين — عندها فقط تُعرض المنبثقة بالعنوان الكامل
   const titleRef = useRef<HTMLParagraphElement>(null)
@@ -90,6 +95,35 @@ export function TaskCard({
           )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+          {/* علم الأولوية — لغير المتوسطة (الافتراضية) لتقليل الضجيج */}
+          {task.priority !== 'MEDIUM' && (
+            <span
+              className="flex items-center gap-0.5"
+              title={`الأولوية: ${PRIORITY_LABELS[task.priority]}`}
+              style={{ color: PRIORITY_COLORS[task.priority] }}
+            >
+              <Flag size={12} fill="currentColor" />
+              {PRIORITY_LABELS[task.priority]}
+            </span>
+          )}
+          {/* شارة الاستحقاق — حمراء عند التأخر */}
+          {task.due_date && (
+            <span
+              title={overdue ? 'متأخرة عن تاريخ الاستحقاق' : 'تاريخ الاستحقاق'}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-2 py-0.5',
+                overdue
+                  ? 'bg-red-50 font-bold text-red-600'
+                  : isDone
+                    ? 'bg-slate-50 text-slate-400'
+                    : 'bg-slate-50 text-slate-500',
+              )}
+            >
+              <CalendarDays size={12} />
+              {formatDay(task.due_date)}
+              {overdue && ' — متأخرة'}
+            </span>
+          )}
           {showProject && (
             <Link
               to={`/projects/${task.project}`}

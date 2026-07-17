@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, FileText, Paperclip, Pencil, Trash2, Upload, X } from 'lucide-react'
+import { ChevronUp, FileText, Paperclip, Pencil, Trash2, Upload, X } from 'lucide-react'
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useAttachmentMutations, useAttachments } from '../../hooks/useProjects'
@@ -142,8 +142,9 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'relative rounded-xl border border-slate-200/70 bg-white p-4 transition-shadow duration-200',
-        !expanded && 'cursor-pointer hover:shadow-lg hover:shadow-slate-200/80',
+        'relative rounded-xl border border-slate-200/70 bg-white transition-shadow duration-200',
+        // مطوي: ارتفاع مدمج والنقر على الكرت كله يفتح القسم
+        expanded ? 'p-4' : 'cursor-pointer px-4 py-2.5 hover:shadow-lg hover:shadow-slate-200/80',
       )}
     >
       {/* مؤشر الإفلات أثناء سحب ملفات فوق الكرت */}
@@ -152,7 +153,7 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
           أفلت الملفات هنا لرفعها
         </div>
       )}
-      <div className="mb-3 flex items-center justify-between">
+      <div className={cn('flex items-center justify-between', expanded && 'mb-3')}>
         <h2 className="font-bold text-slate-700">
           المرفقات{' '}
           <span className="text-sm font-normal text-slate-400">({attachments.length})</span>
@@ -173,17 +174,6 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
           className="hidden"
         />
       </div>
-
-      {/* مطوي: زر التوسيع فقط — والنقر على الكرت كله يوسّع أيضاً */}
-      {!expanded && (
-        <button
-          onClick={() => setExpanded(true)}
-          className="mt-1 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-        >
-          <ChevronDown size={15} />
-          عرض المزيد
-        </button>
-      )}
 
       {expanded && (
       <>
@@ -303,8 +293,10 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
                 className="shrink-0"
               >
                 <img
-                  src={attachment.file}
+                  src={attachment.thumbnail ?? attachment.file}
                   alt={attachment.file_name}
+                  loading="lazy"
+                  decoding="async"
                   className="h-11 w-11 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200"
                 />
               </button>

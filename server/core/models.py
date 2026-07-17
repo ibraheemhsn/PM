@@ -18,6 +18,10 @@ class User(AbstractUser):
     # — الصورة المرفوعة لها الأولوية في العرض إن وُجدت
     avatar = models.CharField("الأيقونة", max_length=20, blank=True, default="")
     photo = models.ImageField("الصورة", upload_to="avatars/", blank=True, null=True)
+    # مصغّرة تُولَّد تلقائياً من photo — القوائم تعرضها بدل الأصل الكبير
+    photo_thumb = models.ImageField(
+        "مصغّرة الصورة", upload_to="avatars/thumbs/", blank=True, null=True
+    )
     is_manager = models.BooleanField("مدير", default=False)
 
     class Meta:
@@ -93,13 +97,20 @@ class Tag(models.Model):
 
 
 class Task(models.Model):
-    """مهمة تابعة لمشروع، لها حالة ولون ووسوم وموظفون مسندون."""
+    """مهمة تابعة لمشروع، لها حالة وأولوية واستحقاق ولون ووسوم وموظفون مسندون."""
 
     class Status(models.TextChoices):
+        # مهمة اقترحها موظف — بانتظار اعتماد المدير (تعديلها أو فتحها أو حذفها)
+        SUGGESTED = "SUGGESTED", "مقترحة"
         OPEN = "OPEN", "مفتوحة"
         IN_PROGRESS = "IN_PROGRESS", "قيد الإنجاز"
         REVIEW = "REVIEW", "قيد المراجعة"
         DONE = "DONE", "منجزة"
+
+    class Priority(models.TextChoices):
+        HIGH = "HIGH", "عالية"
+        MEDIUM = "MEDIUM", "متوسطة"
+        LOW = "LOW", "منخفضة"
 
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="tasks", verbose_name="المشروع"
@@ -108,6 +119,12 @@ class Task(models.Model):
     status = models.CharField(
         "الحالة", max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True
     )
+    priority = models.CharField(
+        "الأولوية", max_length=10, choices=Priority.choices,
+        default=Priority.MEDIUM, db_index=True,
+    )
+    # تاريخ الاستحقاق «يُنجز قبل» — المهمة غير المنجزة بعده تُعد متأخرة
+    due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True, db_index=True)
     color = models.CharField("اللون", max_length=7, blank=True, default="")
     tags = models.ManyToManyField(Tag, blank=True, related_name="tasks", verbose_name="الوسوم")
     assignees = models.ManyToManyField(
@@ -244,8 +261,10 @@ class Notification(models.Model):
     class Kind(models.TextChoices):
         TASK_ASSIGNED = "TASK_ASSIGNED", "مهمة مسندة"
         TASK_STATUS = "TASK_STATUS", "تغيير حالة مهمة"
+        TASK_SUGGESTED = "TASK_SUGGESTED", "مهمة مقترحة"
         NEW_COMMENT = "NEW_COMMENT", "تعليق جديد"
         MENTION = "MENTION", "إشارة في تعليق"
+        DUE_SOON = "DUE_SOON", "اقتراب استحقاق"
         DETAILS_PROPOSED = "DETAILS_PROPOSED", "تعديل مقترح"
         PROJECT_UPDATE = "PROJECT_UPDATE", "تحديث مشروع"
 
@@ -318,12 +337,22 @@ class Attachment(models.Model):
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="attachments", verbose_name="المشروع"
     )
+    # مرفق مرتبط بتحديث مشروع (اختياري) — يظهر تحت التحديث وفي قسم المرفقات معاً.
+    # حذف التحديث نهائياً يبقي المرفق كمرفق عادي للمشروع (SET_NULL)
+    update = models.ForeignKey(
+        ProjectUpdate, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="attachments", verbose_name="التحديث",
+    )
     file_name = models.CharField("اسم الملف", max_length=255)
     # تصنيف اختياري — أساس الفلترة السريعة في أقسام المرفقات
     category = models.CharField(
         "التصنيف", max_length=20, choices=Category.choices, blank=True, default=""
     )
     file = models.FileField("الملف", upload_to="attachments/%Y/%m/", blank=True, null=True)
+    # مصغّرة تُولَّد تلقائياً للمرفقات الصورية — تُعرض في القوائم بدل الأصل
+    thumbnail = models.FileField(
+        "المصغّرة", upload_to="attachments/thumbs/%Y/%m/", blank=True, null=True
+    )
     description = models.CharField("الوصف", max_length=500, blank=True, default="")
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,

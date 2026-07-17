@@ -1,6 +1,8 @@
 /** الأنواع المشتركة — تطابق حقول DRF serializers (snake_case). */
 
-export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+export type TaskStatus = 'SUGGESTED' | 'OPEN' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+
+export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface UserBrief {
   id: number
@@ -10,6 +12,8 @@ export interface UserBrief {
   avatar: string | null
   /** صورة مرفوعة — لها الأولوية في العرض على الأيقونة */
   photo: string | null
+  /** مصغّرة الصورة (تولَّد تلقائياً) — القوائم تعرضها بدل الأصل الكبير */
+  photo_thumb: string | null
 }
 
 export interface User extends UserBrief {
@@ -54,6 +58,9 @@ export interface Task {
   project_archived: boolean
   title: string
   status: TaskStatus
+  priority: TaskPriority
+  /** تاريخ الاستحقاق (YYYY-MM-DD) — غير المنجزة بعده تُعد متأخرة */
+  due_date: string | null
   color: string
   tags: string[]
   assignees: UserBrief[]
@@ -77,6 +84,16 @@ export interface TaskComment {
   created_at: string
 }
 
+/** مرفق مختصر معروض تحت تحديث المشروع */
+export interface UpdateAttachment {
+  id: number
+  file: string
+  file_name: string
+  /** مصغّرة للصور — تُعرض في القوائم والأصل يُفتح في العارض */
+  thumbnail: string | null
+  size: number
+}
+
 /** تحديث/حدث على المشروع (توقيع عقد، إرسال كتاب…) — الأحدث في أسفل القائمة */
 export interface ProjectUpdate {
   id: number
@@ -87,6 +104,8 @@ export interface ProjectUpdate {
   project_archived: boolean
   author: UserBrief | null
   body: string
+  /** مرفقات مرتبطة بهذا التحديث — تظهر في قسم المرفقات أيضاً */
+  attachments: UpdateAttachment[]
   /** أحدث من آخر اطلاع للمستخدم على تحديثات المشروع وليس من كتابته */
   is_unread: boolean
   /** غير فارغ = التحديث في سلة المحذوفات */
@@ -128,6 +147,8 @@ export interface Attachment {
   /** رابط الملف */
   file: string
   file_name: string
+  /** مصغّرة للصور — تُعرض في القوائم والأصل يُفتح في العارض */
+  thumbnail: string | null
   description: string
   /** التصنيف — فارغ إذا لم يُحدد */
   category: AttachmentCategory | ''
@@ -159,8 +180,10 @@ export interface AppNotification {
   kind:
     | 'TASK_ASSIGNED'
     | 'TASK_STATUS'
+    | 'TASK_SUGGESTED'
     | 'NEW_COMMENT'
     | 'MENTION'
+    | 'DUE_SOON'
     | 'DETAILS_PROPOSED'
     | 'PROJECT_UPDATE'
   message: string
@@ -172,6 +195,7 @@ export interface AppNotification {
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
+  SUGGESTED: 'مقترحة',
   OPEN: 'مفتوحة',
   IN_PROGRESS: 'قيد الإنجاز',
   REVIEW: 'قيد المراجعة',
@@ -179,6 +203,30 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 }
 
 export const TASK_STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[]
+
+export const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  HIGH: 'عالية',
+  MEDIUM: 'متوسطة',
+  LOW: 'منخفضة',
+}
+
+/** ألوان علم الأولوية */
+export const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  HIGH: '#ef4444',
+  MEDIUM: '#f59e0b',
+  LOW: '#94a3b8',
+}
+
+export const TASK_PRIORITIES = Object.keys(PRIORITY_LABELS) as TaskPriority[]
+
+/** ترتيب الأولوية للفرز — الأعلى أولاً */
+export const PRIORITY_RANK: Record<TaskPriority, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
+
+/** المهمة متأخرة: لها استحقاق مضى ولم تُنجز (مقارنة نصية لصيغة ISO تكفي) */
+export const isTaskOverdue = (task: Task): boolean =>
+  !!task.due_date &&
+  task.status !== 'DONE' &&
+  task.due_date < new Date().toISOString().slice(0, 10)
 
 export const displayName = (user: UserBrief) => user.first_name || user.username
 

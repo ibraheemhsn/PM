@@ -13,6 +13,7 @@ from .models import (
     ActivityLog, Attachment, Notification, Project, ProjectUpdate, Tag, Task,
     TaskComment, User,
 )
+from .thumbnails import AVATAR_THUMB_SIZE, make_thumbnail, thumb_name
 
 # أنواع المرفقات المسموحة: صور وPDF وملفات نصية
 ALLOWED_ATTACHMENT_EXTENSIONS = {
@@ -26,22 +27,30 @@ class UserBriefSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "avatar", "photo"]
+        fields = ["id", "username", "first_name", "avatar", "photo", "photo_thumb"]
 
 
 class UserSerializer(serializers.ModelSerializer):
     """إدارة الموظفين: كلمة المرور للكتابة فقط، وتكون اختيارية عند التعديل."""
 
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
-    is_manager = serializers.SerializerMethodField()
+    # الدور قابل للتعيين عند الإنشاء والتعديل (النقطة كلها للمدير فقط أصلاً)
+    is_manager = serializers.BooleanField(required=False)
 
     class Meta:
         model = User
         # photo تُرسل multipart عند الرفع، أو null (JSON) للمسح عند اختيار أيقونة
-        fields = ["id", "username", "first_name", "password", "avatar", "photo", "is_manager"]
+        fields = [
+            "id", "username", "first_name", "password", "avatar", "photo",
+            "photo_thumb", "is_manager",
+        ]
+        read_only_fields = ["photo_thumb"]  # تُولَّد تلقائياً من photo
 
-    def get_is_manager(self, obj) -> bool:
-        return obj.is_manager or obj.is_superuser
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # superuser يُعامل مديراً في العرض حتى لو لم يُفعَّل حقله
+        data["is_manager"] = instance.is_manager or instance.is_superuser
+        return data
 
     def validate(self, attrs):
         if self.instance is None and not attrs.get("password"):
@@ -50,15 +59,34 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-        return User.objects.create_user(password=password, **validated_data)
+        user = User.objects.create_user(password=password, **validated_data)
+        if user.photo:
+            self._refresh_photo_thumb(user)
+        return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        photo_touched = "photo" in validated_data
         user = super().update(instance, validated_data)
         if password:
             user.set_password(password)
             user.save(update_fields=["password"])
+        if photo_touched:
+            self._refresh_photo_thumb(user)
         return user
+
+    @staticmethod
+    def _refresh_photo_thumb(user):
+        """مصغّرة تلقائية لصورة المستخدم — القوائم تعرضها بدل الأصل الكبير."""
+        if user.photo_thumb:
+            user.photo_thumb.delete(save=False)
+        if user.photo:
+            thumb = make_thumbnail(user.photo, AVATAR_THUMB_SIZE)
+            if thumb:
+                user.photo_thumb.save(thumb_name(user.photo.name), thumb, save=True)
+                return
+        user.photo_thumb = None
+        user.save(update_fields=["photo_thumb"])
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -113,8 +141,9 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             "id", "project", "project_title", "project_color", "project_archived",
-            "title", "status", "color", "tags", "assignees", "comments_count",
-            "has_unread_comments", "is_unread", "deleted_at", "created_at", "updated_at",
+            "title", "status", "priority", "due_date", "color", "tags", "assignees",
+            "comments_count", "has_unread_comments", "is_unread", "deleted_at",
+            "created_at", "updated_at",
         ]
         # الحذف الناعم يُدار حصراً عبر destroy/restore/purge
         read_only_fields = ["deleted_at"]
@@ -177,6 +206,22 @@ class TaskCommentSerializer(serializers.ModelSerializer):
         return prev_seen is None or obj.created_at > prev_seen
 
 
+class UpdateAttachmentSerializer(serializers.ModelSerializer):
+    """تمثيل مختصر لمرفق معروض تحت تحديث المشروع."""
+
+    size = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attachment
+        fields = ["id", "file", "file_name", "thumbnail", "size"]
+
+    def get_size(self, obj) -> int:
+        try:
+            return obj.file.size if obj.file else 0
+        except OSError:
+            return 0
+
+
 class ProjectUpdateSerializer(serializers.ModelSerializer):
     author = UserBriefSerializer(read_only=True)
     # لعرض التحديث في الخلاصة الموحدة مع المهام
@@ -184,12 +229,15 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
     project_color = serializers.CharField(source="project.color", read_only=True)
     is_unread = serializers.SerializerMethodField()
     project_archived = serializers.SerializerMethodField()
+    # مرفقات مرتبطة بهذا التحديث (تظهر في قسم المرفقات أيضاً)
+    attachments = UpdateAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = ProjectUpdate
         fields = [
             "id", "project", "project_title", "project_color", "project_archived",
-            "author", "body", "is_unread", "deleted_at", "created_at", "updated_at",
+            "author", "body", "attachments", "is_unread", "deleted_at",
+            "created_at", "updated_at",
         ]
         # الحذف الناعم يُدار حصراً عبر destroy/restore/purge
         read_only_fields = ["deleted_at"]
@@ -233,13 +281,22 @@ class AttachmentSerializer(serializers.ModelSerializer):
     project_title = serializers.CharField(source="project.title", read_only=True)
     project_color = serializers.CharField(source="project.color", read_only=True)
 
+    def validate(self, attrs):
+        # مرفق التحديث يجب أن يتبع نفس مشروع التحديث
+        update = attrs.get("update")
+        project = attrs.get("project") or (self.instance.project if self.instance else None)
+        if update and project and update.project_id != project.id:
+            raise serializers.ValidationError({"update": "التحديث لا يتبع هذا المشروع."})
+        return attrs
+
     class Meta:
         model = Attachment
         fields = [
-            "id", "project", "project_title", "project_color", "file", "file_name",
-            "description", "category", "uploaded_by", "size", "created_at",
+            "id", "project", "project_title", "project_color", "update", "file",
+            "file_name", "thumbnail", "description", "category", "uploaded_by",
+            "size", "created_at",
         ]
-        read_only_fields = ["file_name"]
+        read_only_fields = ["file_name", "thumbnail"]  # المصغّرة تُولَّد تلقائياً
 
     def get_size(self, obj) -> int:
         try:

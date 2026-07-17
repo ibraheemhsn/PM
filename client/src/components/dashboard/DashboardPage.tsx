@@ -1,12 +1,14 @@
-import { Eye, FolderKanban, History, LayoutDashboard, ListTodo, Timer } from 'lucide-react'
+import {
+  AlarmClock, Eye, FolderKanban, History, LayoutDashboard, ListTodo, Timer,
+} from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAllActivity, useProjects } from '../../hooks/useProjects'
 import { useTasks } from '../../hooks/useTasks'
 import { useUsers } from '../../hooks/useUsers'
-import { formatDate } from '../../lib/utils'
+import { formatDate, formatDay } from '../../lib/utils'
 import {
-  displayName, STATUS_LABELS, TASK_STATUSES,
+  displayName, isTaskOverdue, STATUS_LABELS, TASK_STATUSES,
   type Task, type TaskStatus, type UserBrief,
 } from '../../types'
 import { StatusIcon } from '../tasks/StatusIcon'
@@ -14,6 +16,7 @@ import { Avatar } from '../ui/Avatar'
 
 /** ألوان الحالات — نفس ألوان StatusIcon المعتمدة في كل التطبيق */
 const STATUS_COLORS: Record<TaskStatus, string> = {
+  SUGGESTED: '#0ea5e9',
   OPEN: '#94a3b8',
   IN_PROGRESS: '#f59e0b',
   REVIEW: '#8b5cf6',
@@ -26,7 +29,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 type StatusCounts = Record<TaskStatus, number>
 
 const countByStatus = (tasks: Task[]): StatusCounts => {
-  const counts: StatusCounts = { OPEN: 0, IN_PROGRESS: 0, REVIEW: 0, DONE: 0 }
+  const counts: StatusCounts = { SUGGESTED: 0, OPEN: 0, IN_PROGRESS: 0, REVIEW: 0, DONE: 0 }
   for (const task of tasks) counts[task.status] += 1
   return counts
 }
@@ -64,18 +67,23 @@ export function DashboardPage() {
     const maxLoad = Math.max(1, ...workload.map((w) => w.load))
 
     const reviewTasks = active.filter((t) => t.status === 'REVIEW')
+    const overdueTasks = active
+      .filter(isTaskOverdue)
+      .sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''))
     const staleTasks = active
       .filter(
         (t) =>
+          !isTaskOverdue(t) && // المتأخرة لها قسمها الخاص
           (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
           Date.now() - new Date(t.updated_at).getTime() > STALE_DAYS * DAY_MS,
       )
       .sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime())
 
-    return { active, totals, byProject, workload, maxLoad, reviewTasks, staleTasks }
+    return { active, totals, byProject, workload, maxLoad, reviewTasks, overdueTasks, staleTasks }
   }, [tasks, projects, users])
 
-  const notDone = stats.totals.OPEN + stats.totals.IN_PROGRESS + stats.totals.REVIEW
+  const notDone =
+    stats.totals.SUGGESTED + stats.totals.OPEN + stats.totals.IN_PROGRESS + stats.totals.REVIEW
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -95,12 +103,13 @@ export function DashboardPage() {
           icon={<Eye size={17} className="text-violet-500" />}
           label="بانتظار المراجعة"
           value={stats.totals.REVIEW}
-          highlight={stats.totals.REVIEW > 0}
+          tone={stats.totals.REVIEW > 0 ? 'violet' : undefined}
         />
         <StatTile
-          icon={<StatusIcon status="DONE" size={17} />}
-          label="منجزة"
-          value={stats.totals.DONE}
+          icon={<AlarmClock size={17} className="text-red-500" />}
+          label="متأخرة"
+          value={stats.overdueTasks.length}
+          tone={stats.overdueTasks.length > 0 ? 'red' : undefined}
         />
       </div>
 
@@ -201,7 +210,29 @@ export function DashboardPage() {
       <section className="mb-6 rounded-xl border border-slate-200/70 bg-white p-4">
         <h2 className="mb-3 font-bold text-slate-700">بحاجة إلى انتباه</h2>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div>
+            <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-red-700">
+              <AlarmClock size={15} />
+              متأخرة عن استحقاقها ({stats.overdueTasks.length})
+            </h3>
+            {stats.overdueTasks.length === 0 && (
+              <p className="rounded-lg border border-dashed border-slate-200 py-4 text-center text-xs text-slate-400">
+                لا مهام متأخرة — ممتاز
+              </p>
+            )}
+            <div className="space-y-1.5">
+              {stats.overdueTasks.slice(0, 6).map((task) => (
+                <AttentionRow
+                  key={task.id}
+                  task={task}
+                  note={task.due_date ? `استحقاقها ${formatDay(task.due_date)}` : undefined}
+                  noteClassName="text-red-600 font-medium"
+                />
+              ))}
+            </div>
+          </div>
+
           <div>
             <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-violet-700">
               <Eye size={15} />
@@ -286,14 +317,16 @@ export function DashboardPage() {
 }
 
 function StatTile({
-  icon, label, value, highlight,
-}: { icon: React.ReactNode; label: string; value: number; highlight?: boolean }) {
+  icon, label, value, tone,
+}: { icon: React.ReactNode; label: string; value: number; tone?: 'violet' | 'red' }) {
   return (
     <div
       className={
-        highlight
-          ? 'rounded-xl border border-violet-200 bg-violet-50/60 p-4'
-          : 'rounded-xl border border-slate-200/70 bg-white p-4'
+        tone === 'red'
+          ? 'rounded-xl border border-red-200 bg-red-50/60 p-4'
+          : tone === 'violet'
+            ? 'rounded-xl border border-violet-200 bg-violet-50/60 p-4'
+            : 'rounded-xl border border-slate-200/70 bg-white p-4'
       }
     >
       <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -306,7 +339,9 @@ function StatTile({
 }
 
 /** صف مهمة في قسم «بحاجة إلى انتباه» — ينقل للمشروع مع وميض المهمة */
-function AttentionRow({ task, note }: { task: Task; note?: string }) {
+function AttentionRow({
+  task, note, noteClassName = 'text-amber-600',
+}: { task: Task; note?: string; noteClassName?: string }) {
   return (
     <Link
       to={`/projects/${task.project}?focus=task-${task.id}`}
@@ -314,7 +349,7 @@ function AttentionRow({ task, note }: { task: Task; note?: string }) {
     >
       <StatusIcon status={task.status} size={14} />
       <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{task.title}</span>
-      {note && <span className="shrink-0 text-[11px] text-amber-600">{note}</span>}
+      {note && <span className={`shrink-0 text-[11px] ${noteClassName}`}>{note}</span>}
       <span className="flex shrink-0 items-center gap-1 text-[11px] text-slate-400">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: task.project_color }} />
         {task.project_title}

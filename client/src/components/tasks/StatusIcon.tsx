@@ -1,8 +1,9 @@
-import { CheckCircle2, Circle, Eye, Timer } from 'lucide-react'
+import { CheckCircle2, Circle, Eye, Lightbulb, Timer } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { TaskStatus } from '../../types'
 
 const STATUS_STYLES: Record<TaskStatus, { Icon: typeof Circle; className: string }> = {
+  SUGGESTED: { Icon: Lightbulb, className: 'text-sky-500' },
   OPEN: { Icon: Circle, className: 'text-slate-400' },
   IN_PROGRESS: { Icon: Timer, className: 'text-amber-500' },
   REVIEW: { Icon: Eye, className: 'text-violet-500' },

@@ -58,7 +58,7 @@ export function ActivityPage() {
   return (
     <div>
       {/* شريط البحث والفلاتر */}
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 px-6 py-4 backdrop-blur">
+      <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
         <div className="mb-3 flex items-center gap-2">
           <History size={20} className="text-slate-400" />
           <h1 className="text-xl font-bold text-slate-900">
@@ -131,16 +131,16 @@ export function ActivityPage() {
             {actors.map((actor) => (
               <button
                 key={actor.id}
-                title={displayName(actor)}
                 onClick={() => setActorFilter((f) => (f === actor.id ? 'all' : actor.id))}
                 className={cn(
-                  'rounded-full transition-all',
+                  'flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs transition-colors',
                   actorFilter === actor.id
-                    ? 'ring-2 ring-blue-600 ring-offset-2'
-                    : 'opacity-70 hover:opacity-100',
+                    ? 'border-blue-600 bg-blue-50 font-medium text-blue-700'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300',
                 )}
               >
-                <Avatar user={actor} size={30} />
+                <Avatar user={actor} size={18} />
+                {displayName(actor)}
               </button>
             ))}
           </div>

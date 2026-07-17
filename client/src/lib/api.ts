@@ -4,7 +4,7 @@
  *    (تُزرع عند نداء /auth/me/ أول مرة) مع كل طلب غير GET. */
 import type {
   ActivityEntry, AppNotification, Attachment, Project, ProjectUpdate, Tag,
-  Task, TaskComment, TaskStatus, User, UserBrief,
+  Task, TaskComment, TaskPriority, TaskStatus, User, UserBrief,
 } from '../types'
 
 export interface ProjectInput {
@@ -25,6 +25,9 @@ export interface TaskInput {
   project: number
   title: string
   status: TaskStatus
+  priority: TaskPriority
+  /** null لمسح تاريخ الاستحقاق */
+  due_date: string | null
   color: string
   tags: string[]
   assignees: number[]
@@ -38,6 +41,8 @@ export interface Credentials {
 export interface UserInput {
   username: string
   first_name: string
+  /** الدور: مدير (true) أو موظف (false) */
+  is_manager?: boolean
   /** اختيارية عند التعديل — تبقى الحالية إن لم تُرسل */
   password?: string
   /** مفتاح أيقونة جاهزة من AVATAR_OPTIONS */
@@ -147,12 +152,20 @@ export const api = {
     /** كل المرفقات عبر جميع المشاريع — لصفحة «كل المرفقات» */
     listAll: () => request<Attachment[]>('/attachments/'),
     list: (projectId: number) => request<Attachment[]>(`/attachments/?project=${projectId}`),
-    create: (projectId: number, file: File, description: string, category: string) => {
+    create: (
+      projectId: number,
+      file: File,
+      description: string,
+      category: string,
+      /** ربط المرفق بتحديث مشروع — يظهر تحته وفي قسم المرفقات معاً */
+      updateId?: number,
+    ) => {
       const data = new FormData()
       data.append('project', String(projectId))
       data.append('file', file)
       data.append('description', description)
       data.append('category', category)
+      if (updateId) data.append('update', String(updateId))
       return request<Attachment>('/attachments/', { method: 'POST', body: data })
     },
     update: (id: number, data: { description?: string; category?: string }) =>

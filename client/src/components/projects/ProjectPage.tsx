@@ -14,6 +14,7 @@ import { TaskCard } from '../tasks/TaskCard'
 import { TaskCommentsModal } from '../tasks/TaskCommentsModal'
 import { TaskFormModal } from '../tasks/TaskFormModal'
 import { Lightbox } from '../ui/Lightbox'
+import { Tooltip } from '../ui/Tooltip'
 import { AttachmentsSection } from './AttachmentsSection'
 import { ProjectFormModal } from './ProjectFormModal'
 import { UpdatesSection } from './UpdatesSection'
@@ -98,50 +99,54 @@ export function ProjectPage() {
           <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
           <h1 className="min-w-0 truncate text-2xl font-bold text-slate-900">{project.title}</h1>
           {/* روابط المشروع السريعة — كل أيقونة تفتح رابطها في تبويب جديد */}
-          {project.share_link && (
-            <a
-              href={externalHref(project.share_link)}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`فتح مجلد ملفات المشروع\n${project.share_link}`}
-              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
-            >
-              <Folder size={21} className="text-amber-600" />
-            </a>
-          )}
-          {project.outgoing_link && (
-            <a
-              href={externalHref(project.outgoing_link)}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`ملف الصادر (Google Docs)\n${project.outgoing_link}`}
-              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
-            >
-              <FileOutput size={21} className="text-blue-600" />
-            </a>
-          )}
-          {project.accounts_link && (
-            <a
-              href={externalHref(project.accounts_link)}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`ملف الحسابات (Google Sheets)\n${project.accounts_link}`}
-              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
-            >
-              <FileSpreadsheet size={21} className="text-emerald-600" />
-            </a>
-          )}
-          {project.incoming_link && (
-            <a
-              href={externalHref(project.incoming_link)}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`مجلد الواردة (Google Drive)\n${project.incoming_link}`}
-              className="shrink-0 rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
-            >
-              <FolderDown size={21} className="text-violet-600" />
-            </a>
-          )}
+          {(
+            [
+              {
+                link: project.share_link,
+                label: 'فتح مجلد ملفات المشروع',
+                icon: <Folder size={21} className="text-amber-600" />,
+              },
+              {
+                link: project.outgoing_link,
+                label: 'ملف الصادر (Google Docs)',
+                icon: <FileOutput size={21} className="text-blue-600" />,
+              },
+              {
+                link: project.accounts_link,
+                label: 'ملف الحسابات (Google Sheets)',
+                icon: <FileSpreadsheet size={21} className="text-emerald-600" />,
+              },
+              {
+                link: project.incoming_link,
+                label: 'مجلد الواردة (Google Drive)',
+                icon: <FolderDown size={21} className="text-violet-600" />,
+              },
+            ] as const
+          )
+            .filter((item) => item.link)
+            .map((item) => (
+              <Tooltip
+                key={item.label}
+                className="shrink-0"
+                label={
+                  <>
+                    <span className="block font-medium">{item.label}</span>
+                    <span className="block break-all text-slate-300" dir="ltr">
+                      {item.link}
+                    </span>
+                  </>
+                }
+              >
+                <a
+                  href={externalHref(item.link)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-slate-100"
+                >
+                  {item.icon}
+                </a>
+              </Tooltip>
+            ))}
           <div className="flex-1" />
           {isManager && (
             <>
@@ -209,15 +214,14 @@ export function ProjectPage() {
           <h2 className="font-bold text-slate-700">
             المهام <span className="text-sm font-normal text-slate-400">({projectTasks.length})</span>
           </h2>
-          {isManager && (
-            <button
-              onClick={() => setEditingTask('new')}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <Plus size={15} />
-              مهمة جديدة
-            </button>
-          )}
+          <button
+            onClick={() => setEditingTask('new')}
+            title={isManager ? undefined : 'اقتراح مهمة تُعرض على المدير للاعتماد'}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <Plus size={15} />
+            {isManager ? 'مهمة جديدة' : 'اقتراح مهمة'}
+          </button>
         </div>
         <div className="space-y-2">
           {projectTasks.length === 0 && (

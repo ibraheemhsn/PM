@@ -1,5 +1,6 @@
-import { Camera } from 'lucide-react'
+import { Camera, ShieldCheck, User as UserIcon } from 'lucide-react'
 import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useMe } from '../../hooks/useAuth'
 import { useUserMutations } from '../../hooks/useUsers'
 import { cn } from '../../lib/utils'
 import { AVATAR_OPTIONS, type User } from '../../types'
@@ -14,11 +15,16 @@ interface EmployeeFormModalProps {
 }
 
 export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
+  const { data: me } = useMe()
   const { create, update } = useUserMutations()
 
   const [username, setUsername] = useState(user?.username ?? '')
   const [firstName, setFirstName] = useState(user?.first_name ?? '')
+  const [isManager, setIsManager] = useState(user?.is_manager ?? false)
   const [password, setPassword] = useState('')
+
+  // لا يستطيع المدير إزالة صلاحيته عن نفسه (محمي على الخادم أيضاً)
+  const editingSelf = user !== null && user.id === me?.id
   // خياران للصورة الرمزية: أيقونة جاهزة أو صورة مرفوعة
   const [mode, setMode] = useState<AvatarMode>(user?.photo ? 'photo' : 'icon')
   const [avatar, setAvatar] = useState(user?.avatar || AVATAR_OPTIONS[0].key)
@@ -57,6 +63,7 @@ export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
         const data = new FormData()
         data.append('username', username.trim())
         data.append('first_name', firstName.trim())
+        data.append('is_manager', String(isManager))
         data.append('avatar', '')
         data.append('photo', photoFile)
         if (password) data.append('password', password)
@@ -69,6 +76,7 @@ export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
         const data = {
           username: username.trim(),
           first_name: firstName.trim(),
+          is_manager: isManager,
           avatar: '',
           ...(password ? { password } : {}),
         }
@@ -83,6 +91,7 @@ export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
     const data = {
       username: username.trim(),
       first_name: firstName.trim(),
+      is_manager: isManager,
       avatar,
       photo: null,
       ...(password ? { password } : {}),
@@ -175,6 +184,50 @@ export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
             dir="ltr"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
           />
+        </div>
+
+        {/* الدور: مدير يدير كل شيء، وموظف يتابع مهامه المسندة */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">الدور</label>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsManager(false)}
+              disabled={editingSelf}
+              className={cn(
+                'flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                !isManager
+                  ? 'border-blue-600 bg-blue-50 font-medium text-blue-700'
+                  : 'border-slate-200 text-slate-500 hover:border-slate-300',
+              )}
+            >
+              <UserIcon size={15} />
+              موظف
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsManager(true)}
+              disabled={editingSelf}
+              className={cn(
+                'flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                isManager
+                  ? 'border-blue-600 bg-blue-50 font-medium text-blue-700'
+                  : 'border-slate-200 text-slate-500 hover:border-slate-300',
+              )}
+            >
+              <ShieldCheck size={15} />
+              مدير
+            </button>
+          </div>
+          {editingSelf ? (
+            <p className="mt-1 text-[11px] text-slate-400">
+              لا يمكنك تغيير دور حسابك الحالي.
+            </p>
+          ) : (
+            <p className="mt-1 text-[11px] text-slate-400">
+              المدير يدير المشاريع والمهام والموظفين — الموظف يتابع مهامه المسندة فقط.
+            </p>
+          )}
         </div>
 
         <div>

@@ -15,9 +15,13 @@ export function Avatar({ user, size = 28, className }: {
   if (user.photo) {
     return (
       <img
-        src={user.photo}
+        src={user.photo_thumb || user.photo}
         alt={name}
         title={name}
+        // الملف الأصلي قد يكون كبيراً — تحميل كسول وفك ترميز غير متزامن
+        // كي لا يتقطع التمرير مع كثرة الظهور في القوائم
+        loading="lazy"
+        decoding="async"
         style={{ width: size, height: size }}
         className={cn('shrink-0 rounded-full object-cover', className)}
       />

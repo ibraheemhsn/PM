@@ -94,7 +94,7 @@ export function AttachmentsPage() {
   return (
     <div>
       {/* شريط البحث والفلاتر */}
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 px-6 py-4 backdrop-blur">
+      <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
         <h1 className="mb-3 text-xl font-bold text-slate-900">
           كل المرفقات{' '}
           <span className="text-sm font-normal text-slate-400">({visible.length})</span>
@@ -231,8 +231,10 @@ export function AttachmentsPage() {
                 className="shrink-0"
               >
                 <img
-                  src={attachment.file}
+                  src={attachment.thumbnail ?? attachment.file}
                   alt={attachment.file_name}
+                  loading="lazy"
+                  decoding="async"
                   className="h-11 w-11 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200"
                 />
               </button>

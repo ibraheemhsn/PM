@@ -1,11 +1,14 @@
 import { X } from 'lucide-react'
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useMe } from '../../hooks/useAuth'
 import { useProjects } from '../../hooks/useProjects'
 import { useTags, useTaskMutations } from '../../hooks/useTasks'
 import { useUsers } from '../../hooks/useUsers'
 import { cn } from '../../lib/utils'
 import {
-  displayName, STATUS_LABELS, TASK_STATUSES, type Task, type TaskStatus,
+  displayName, PRIORITY_COLORS, PRIORITY_LABELS, STATUS_LABELS,
+  TASK_PRIORITIES, TASK_STATUSES,
+  type Task, type TaskPriority, type TaskStatus,
 } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { ColorPicker } from '../ui/ColorPicker'
@@ -20,14 +23,20 @@ interface TaskFormModalProps {
 }
 
 export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModalProps) {
+  const { data: me } = useMe()
+  // الموظف يقترح مهمة: الحالة «مقترحة» إجبارياً وبلا إسناد (تُسند إليه تلقائياً)
+  const isManager = !!me?.is_manager
+
   const { data: projects = [] } = useProjects()
   const { data: allTags = [] } = useTags()
-  const { data: employees = [] } = useUsers() // النموذج يظهر للمدير فقط
+  const { data: employees = [] } = useUsers(isManager) // endpoint خاص بالمدير
   const { create, update } = useTaskMutations()
 
   const [title, setTitle] = useState(task?.title ?? '')
   const [projectId, setProjectId] = useState<number>(task?.project ?? defaultProjectId ?? 0)
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'OPEN')
+  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'MEDIUM')
+  const [dueDate, setDueDate] = useState(task?.due_date ?? '')
   const [color, setColor] = useState(task?.color ?? '')
   const [tags, setTags] = useState<string[]>(task?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
@@ -64,7 +73,17 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
       ? [...tags, tagInput.trim().replace(/^#/, '')].filter((t, i, arr) => arr.indexOf(t) === i)
       : tags
 
-    const data = { project: projectId, title: trimmed, status, color, tags: finalTags, assignees }
+    const data = {
+      project: projectId,
+      title: trimmed,
+      // الموظف: «مقترحة» إجبارياً والإسناد له تلقائياً (يفرضهما الخادم أيضاً)
+      status: isManager ? status : ('SUGGESTED' as TaskStatus),
+      priority,
+      due_date: dueDate || null,
+      color,
+      tags: finalTags,
+      assignees: isManager ? assignees : [],
+    }
     if (task) {
       update.mutate({ id: task.id, data }, { onSuccess: onClose })
     } else {
@@ -73,7 +92,10 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
   }
 
   return (
-    <Modal title={task ? 'تعديل المهمة' : 'مهمة جديدة'} onClose={onClose}>
+    <Modal
+      title={task ? 'تعديل المهمة' : isManager ? 'مهمة جديدة' : 'اقتراح مهمة'}
+      onClose={onClose}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">عنوان المهمة</label>
@@ -95,41 +117,8 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">المشروع</label>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(Number(e.target.value))}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-            >
-              <option value={0} disabled>
-                اختر مشروعاً
-              </option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">الحالة</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-            >
-              {TASK_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* إسناد المهمة لموظف واحد أو أكثر */}
+        {/* إسناد المهمة لموظف واحد أو أكثر — للمدير فقط */}
+        {isManager && (
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">إسناد إلى</label>
           <div className="flex flex-wrap gap-1.5">
@@ -154,6 +143,81 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
                 {displayName(employee)}
               </button>
             ))}
+          </div>
+        </div>
+        )}
+
+        <div className={cn('grid gap-3', isManager && 'grid-cols-2')}>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">المشروع</label>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(Number(e.target.value))}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+            >
+              <option value={0} disabled>
+                اختر مشروعاً
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          {isManager && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">الحالة</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+              >
+                {TASK_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">الأولوية</label>
+            <div className="flex gap-1.5">
+              {TASK_PRIORITIES.map((p) => (
+                <button
+                  type="button"
+                  key={p}
+                  onClick={() => setPriority(p)}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs transition-colors',
+                    priority === p
+                      ? 'border-blue-600 bg-blue-50 font-medium text-blue-700'
+                      : 'border-slate-200 text-slate-500 hover:border-slate-300',
+                  )}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: PRIORITY_COLORS[p] }}
+                  />
+                  {PRIORITY_LABELS[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">
+              يُنجز قبل <span className="text-xs font-normal text-slate-400">(اختياري)</span>
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            />
           </div>
         </div>
 
@@ -212,7 +276,13 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
             disabled={!title.trim() || !projectId || saving}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {saving ? 'جارٍ الحفظ…' : task ? 'حفظ التعديلات' : 'إضافة المهمة'}
+            {saving
+              ? 'جارٍ الحفظ…'
+              : task
+                ? 'حفظ التعديلات'
+                : isManager
+                  ? 'إضافة المهمة'
+                  : 'إرسال الاقتراح (تُعرض على المدير للاعتماد)'}
           </button>
         </div>
       </form>

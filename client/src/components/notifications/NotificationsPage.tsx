@@ -10,8 +10,10 @@ import { Avatar } from '../ui/Avatar'
 const KIND_BADGES: Record<AppNotification['kind'], { label: string; className: string }> = {
   TASK_ASSIGNED: { label: 'مهمة مسندة', className: 'bg-blue-50 text-blue-600' },
   TASK_STATUS: { label: 'تغيير حالة', className: 'bg-emerald-50 text-emerald-600' },
+  TASK_SUGGESTED: { label: 'مهمة مقترحة', className: 'bg-sky-50 text-sky-600' },
   NEW_COMMENT: { label: 'تعليق جديد', className: 'bg-amber-50 text-amber-700' },
   MENTION: { label: 'إشارة إليك', className: 'bg-rose-50 text-rose-600' },
+  DUE_SOON: { label: 'اقتراب استحقاق', className: 'bg-red-50 text-red-600' },
   DETAILS_PROPOSED: { label: 'تعديل مقترح', className: 'bg-purple-50 text-purple-600' },
   PROJECT_UPDATE: { label: 'تحديث مشروع', className: 'bg-violet-50 text-violet-600' },
 }

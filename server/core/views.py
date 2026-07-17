@@ -6,6 +6,7 @@ Roles enforced server-side (not just in the UI):
   «قيد المراجعة» فقط، ويعلّق عليها.
 """
 import re
+from datetime import timedelta
 
 from django.contrib.auth import authenticate, login, logout
 from django.core.files.storage import default_storage
@@ -26,6 +27,7 @@ from .models import (
     ProjectUpdateRead, Tag, Task, TaskComment, TaskCommentRead, TaskSeen, User,
 )
 from .permissions import IsManager, IsManagerOrReadOnly, is_manager
+from .thumbnails import ATTACHMENT_THUMB_SIZE, is_image_name, make_thumbnail, thumb_name
 from .serializers import (
     ActivityLogSerializer, AttachmentSerializer, ImageUploadSerializer,
     NotificationSerializer, ProjectSerializer, ProjectUpdateSerializer,
@@ -112,6 +114,36 @@ def _notify(recipients, *, actor, kind, message, task=None, project=None):
     )
 
 
+def _generate_due_reminders():
+    """تذكير باقتراب الاستحقاق: إشعار واحد لكل مسند على مهمة يحين استحقاقها
+    اليوم أو غداً وغير منجزة. يُستدعى من فحص الإشعارات الدوري (كل 15 ثانية
+    من أي واجهة مفتوحة) — لا حاجة لمجدول خارجي، والتكرار ممنوع بفحص الوجود."""
+    today = timezone.localdate()
+    due_tasks = (
+        Task.objects.filter(
+            due_date__range=(today, today + timedelta(days=1)),
+            deleted_at__isnull=True,
+            project__deleted_at__isnull=True,
+            project__archived_at__isnull=True,
+        )
+        .exclude(status=Task.Status.DONE)
+        .prefetch_related("assignees")
+    )
+    for task in due_tasks:
+        when = "اليوم" if task.due_date == today else "غداً"
+        for assignee in task.assignees.all():
+            already = Notification.objects.filter(
+                recipient=assignee, task=task, kind=Notification.Kind.DUE_SOON
+            ).exists()
+            if not already:
+                Notification.objects.create(
+                    recipient=assignee, actor=None,
+                    kind=Notification.Kind.DUE_SOON,
+                    message=f"مهمة «{task.title}» يحين استحقاقها {when}",
+                    task=task, project=task.project,
+                )
+
+
 class NotificationViewSet(viewsets.GenericViewSet):
     """إشعارات المستخدم الحالي: القائمة (آخر 30) + تعليم كمقروء.
     الواجهة تفحصها دورياً وتعرض الجديد كإشعار متصفح مع صوت."""
@@ -122,6 +154,8 @@ class NotificationViewSet(viewsets.GenericViewSet):
         return Notification.objects.filter(recipient=self.request.user)
 
     def list(self, request):
+        # الفحص الدوري هو «نبض» النظام — نولّد تذكيرات الاستحقاق عنده
+        _generate_due_reminders()
         # limit اختياري لصفحة الإشعارات الكاملة — الافتراضي 30 (فحص الجرس الدوري)
         try:
             limit = int(request.query_params.get("limit", 30))
@@ -196,6 +230,14 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(
             UserBriefSerializer(qs, many=True, context={"request": request}).data
         )
+
+    def update(self, request, *args, **kwargs):
+        # منع المدير من إزالة صلاحيته عن نفسه فيفقد الوصول فوراً
+        # (القيم تصل bool من JSON أو نصاً من FormData)
+        demoting = str(request.data.get("is_manager", "")).lower() in ("false", "0")
+        if demoting and self.get_object() == request.user:
+            raise PermissionDenied("لا يمكنك إزالة صلاحية المدير عن حسابك الحالي.")
+        return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         if self.get_object() == request.user:
@@ -463,15 +505,28 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def create(self, request, *args, **kwargs):
-        if not is_manager(request.user):
-            raise PermissionDenied("إنشاء المهام متاح للمدير فقط.")
-        return super().create(request, *args, **kwargs)
-
     def perform_create(self, serializer):
-        task = serializer.save()
+        if is_manager(self.request.user):
+            task = serializer.save()
+        else:
+            # الموظف يقترح مهمة: الحالة «مقترحة» إجبارياً وتُسند إليه ليراها
+            # في قائمته — المدير يعتمدها (يفتحها) أو يعدّلها أو يحذفها
+            task = serializer.save(
+                status=Task.Status.SUGGESTED, assignees=[self.request.user]
+            )
         # الكاتب اطّلع على مهمته بطبيعة الحال — تبقى «غير مقروءة» للبقية
         TaskSeen.objects.create(task=task, user=self.request.user)
+
+        if task.status == Task.Status.SUGGESTED:
+            _log(task.project, self.request.user, f"اقترح المهمة «{task.title}»")
+            _notify(
+                _managers(), actor=self.request.user,
+                kind=Notification.Kind.TASK_SUGGESTED,
+                message=f"اقترح {self.request.user} مهمة «{task.title}» — بانتظار اعتمادك",
+                task=task, project=task.project,
+            )
+            return
+
         names = "، ".join(str(u) for u in task.assignees.all())
         _log(
             task.project, self.request.user,
@@ -485,7 +540,10 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
 
     def update(self, request, *args, **kwargs):
+        task = self.get_object()
         if not is_manager(request.user):
+            if task.status == Task.Status.SUGGESTED:
+                raise PermissionDenied("المهمة المقترحة بانتظار اعتماد المدير أولاً.")
             extra_fields = set(request.data.keys()) - EMPLOYEE_EDITABLE_FIELDS
             if extra_fields:
                 raise PermissionDenied("يمكن للموظف تغيير حالة المهمة فقط.")
@@ -493,8 +551,6 @@ class TaskViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied(
                     "يمكن للموظف نقل المهمة إلى «قيد الإنجاز» أو «قيد المراجعة» فقط."
                 )
-
-        task = self.get_object()
         old_assignees = set(task.assignees.values_list("id", flat=True))
         old_status = task.status
         response = super().update(request, *args, **kwargs)
@@ -632,8 +688,10 @@ class ProjectUpdateViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectUpdateSerializer
 
     def get_queryset(self):
-        qs = ProjectUpdate.objects.select_related("author", "project").filter(
-            project__deleted_at__isnull=True
+        qs = (
+            ProjectUpdate.objects.select_related("author", "project")
+            .prefetch_related("attachments")
+            .filter(project__deleted_at__isnull=True)
         )
         # إجراءات المحذوفات تستهدف التحديثات المحذوفة ناعماً فقط
         if self.action in ("restore", "purge"):
@@ -749,6 +807,11 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         attachment = serializer.save(
             uploaded_by=self.request.user, file_name=uploaded_file.name
         )
+        # مصغّرة للمرفقات الصورية — القوائم تعرضها بدل الأصل الكبير
+        if is_image_name(attachment.file_name):
+            thumb = make_thumbnail(attachment.file, ATTACHMENT_THUMB_SIZE)
+            if thumb:
+                attachment.thumbnail.save(thumb_name(attachment.file_name), thumb, save=True)
         _log(attachment.project, self.request.user, f"رفع المرفق «{attachment.file_name}»")
 
     def update(self, request, *args, **kwargs):
@@ -766,6 +829,8 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         _log(instance.project, self.request.user, f"حذف المرفق «{instance.file_name}»")
         if instance.file:
             instance.file.delete(save=False)  # احذف الملف من القرص أيضاً
+        if instance.thumbnail:
+            instance.thumbnail.delete(save=False)
         instance.delete()
 
     def _check_can_modify(self, request):

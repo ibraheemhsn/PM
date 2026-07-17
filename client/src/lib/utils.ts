@@ -11,6 +11,13 @@ export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso))
 }
 
+const dayFormatter = new Intl.DateTimeFormat('ar', { day: 'numeric', month: 'short' })
+
+/** تاريخ قصير بلا وقت (١٧ يوليو) — لشارات الاستحقاق */
+export function formatDay(isoDate: string): string {
+  return dayFormatter.format(new Date(isoDate))
+}
+
 /** تحويل HTML المحرر إلى نص عادي — يُستخدم في البحث الشامل. */
 export function stripHtml(html: string): string {
   return html
