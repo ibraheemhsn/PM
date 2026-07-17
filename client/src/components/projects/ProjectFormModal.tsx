@@ -74,32 +74,34 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
               (اختيارية — تظهر أيقوناتها بجانب عنوان المشروع)
             </span>
           </label>
+          {/* dir=auto: النص التوضيحي العربي يظهر RTL وهو فارغ، والرابط المكتوب
+              يتحول تلقائياً إلى LTR — فلا يُقص النص التوضيحي */}
           <input
             value={shareLink}
             onChange={(e) => setShareLink(e.target.value)}
-            dir="ltr"
-            placeholder="📁 رابط الشير — \\server\share أو رابط سحابي"
+            dir="auto"
+            placeholder="رابط الشير — ‪\\server\share‬ أو رابط سحابي 📁"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
           <input
             value={outgoingLink}
             onChange={(e) => setOutgoingLink(e.target.value)}
-            dir="ltr"
-            placeholder="📄 ملف الصادر — Google Docs للكتب الصادرة"
+            dir="auto"
+            placeholder="ملف الصادر — Google Docs للكتب الصادرة 📄"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
           <input
             value={accountsLink}
             onChange={(e) => setAccountsLink(e.target.value)}
-            dir="ltr"
-            placeholder="📊 ملف الحسابات — Google Sheets للحسابات والأسعار"
+            dir="auto"
+            placeholder="ملف الحسابات — Google Sheets للحسابات والأسعار 📊"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
           <input
             value={incomingLink}
             onChange={(e) => setIncomingLink(e.target.value)}
-            dir="ltr"
-            placeholder="📥 مجلد الواردة — Google Drive لصور الكتب الواردة"
+            dir="auto"
+            placeholder="مجلد الواردة — Google Drive لصور الكتب الواردة 📥"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
         </div>

@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   title: string
@@ -7,7 +8,9 @@ interface ModalProps {
   children: ReactNode
 }
 
-/** نافذة منبثقة عامة — تُغلق بزر Esc أو بالنقر خارجها. */
+/** نافذة منبثقة عامة — تُغلق بزر Esc أو بالنقر خارجها.
+ *  تُعرض عبر Portal إلى body كي لا تنحصر داخل أي عنصر أب فيه transform
+ *  (كالشريط الجانبي المنزلق) فتبقى متمركزة نسبةً للشاشة كاملة. */
 export function Modal({ title, onClose, children }: ModalProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -17,7 +20,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 p-4 pt-16"
       onMouseDown={onClose}
@@ -41,6 +44,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         </div>
         <div className="overflow-y-auto p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -181,7 +181,7 @@ export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="مثال: ahmad"
-            dir="ltr"
+            dir="auto"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
           />
         </div>
@@ -237,7 +237,7 @@ export function EmployeeFormModal({ user, onClose }: EmployeeFormModalProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={user ? 'اتركها فارغة للإبقاء على الحالية' : ''}
-            dir="ltr"
+            dir="auto"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
           />
         </div>
