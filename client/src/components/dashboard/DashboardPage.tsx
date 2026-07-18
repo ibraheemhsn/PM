@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   SUGGESTED: '#0ea5e9',
   OPEN: '#94a3b8',
   IN_PROGRESS: '#f59e0b',
+  ON_HOLD: '#f97316',
   REVIEW: '#8b5cf6',
   DONE: '#10b981',
 }
@@ -29,7 +30,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 type StatusCounts = Record<TaskStatus, number>
 
 const countByStatus = (tasks: Task[]): StatusCounts => {
-  const counts: StatusCounts = { SUGGESTED: 0, OPEN: 0, IN_PROGRESS: 0, REVIEW: 0, DONE: 0 }
+  const counts: StatusCounts = {
+    SUGGESTED: 0, OPEN: 0, IN_PROGRESS: 0, ON_HOLD: 0, REVIEW: 0, DONE: 0,
+  }
   for (const task of tasks) counts[task.status] += 1
   return counts
 }

@@ -1,6 +1,6 @@
 /** الأنواع المشتركة — تطابق حقول DRF serializers (snake_case). */
 
-export type TaskStatus = 'SUGGESTED' | 'OPEN' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+export type TaskStatus = 'SUGGESTED' | 'OPEN' | 'IN_PROGRESS' | 'ON_HOLD' | 'REVIEW' | 'DONE'
 
 export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 
@@ -20,6 +20,9 @@ export interface UserBrief {
 
 export interface User extends UserBrief {
   is_manager: boolean
+  /** ترتيب المشاريع المخصص لهذا المستخدم (معرفات بالترتيب المفضل) —
+   *  يخص واجهته فقط، والمشاريع غير المذكورة تلحق بالترتيب الافتراضي */
+  project_order: number[]
 }
 
 export interface Project {
@@ -49,6 +52,21 @@ export interface Project {
   has_unread: boolean
   created_at: string
   updated_at: string
+}
+
+/** طبّق ترتيب المستخدم المخصص على قائمة مشاريع: المذكورة في الترتيب أولاً
+ *  بترتيبها، وغير المذكورة (الجديدة مثلاً) تلحق بترتيبها الافتراضي */
+export function orderProjects<T extends { id: number }>(projects: T[], order: number[]): T[] {
+  if (order.length === 0) return projects
+  const rank = new Map(order.map((id, index) => [id, index]))
+  return [...projects].sort((a, b) => {
+    const rankA = rank.get(a.id)
+    const rankB = rank.get(b.id)
+    if (rankA === undefined && rankB === undefined) return 0
+    if (rankA === undefined) return 1
+    if (rankB === undefined) return -1
+    return rankA - rankB
+  })
 }
 
 export interface Task {
@@ -202,11 +220,16 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   SUGGESTED: 'مقترحة',
   OPEN: 'مفتوحة',
   IN_PROGRESS: 'قيد الإنجاز',
+  ON_HOLD: 'قيد الانتظار',
   REVIEW: 'قيد المراجعة',
   DONE: 'منجزة',
 }
 
 export const TASK_STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[]
+
+/** آلة حالات الموظف: التنقل بالاتجاهين حصراً بين هذه الحالات الأربع —
+ *  «مقترحة» يعتمدها المدير و«منجزة» يغلقها المدير (القيود مفروضة على الخادم أيضاً) */
+export const EMPLOYEE_STATUS_FLOW: TaskStatus[] = ['OPEN', 'IN_PROGRESS', 'ON_HOLD', 'REVIEW']
 
 export const PRIORITY_LABELS: Record<TaskPriority, string> = {
   HIGH: 'عالية',

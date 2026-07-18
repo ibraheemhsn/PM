@@ -1,17 +1,19 @@
-import { CalendarDays, Flag, MessageCircle, Pencil, Repeat, Trash2 } from 'lucide-react'
+import {
+  CalendarDays, Check, CheckCheck, Flag, MessageCircle, Pencil, Repeat, Trash2,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, formatDay } from '../../lib/utils'
 import {
-  isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS, RECURRENCE_LABELS,
-  STATUS_LABELS, TASK_STATUSES, type Task, type TaskStatus,
+  EMPLOYEE_STATUS_FLOW, isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS,
+  RECURRENCE_LABELS, STATUS_LABELS, TASK_STATUSES, type Task, type TaskStatus,
 } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { StatusIcon } from './StatusIcon'
 
 interface KanbanBoardProps {
   tasks: Task[]
-  /** المدير: سحب لأي عمود + تعديل/حذف؛ الموظف: «قيد الإنجاز» و«قيد المراجعة» فقط */
+  /** المدير: سحب لأي عمود + تعديل/حذف؛ الموظف: بالاتجاهين بين حالاته الأربع فقط */
   canManage: boolean
   /** النقر على جسم البطاقة (خارج الأزرار الداخلية) */
   onOpen: (task: Task) => void
@@ -30,9 +32,7 @@ export function KanbanBoard({
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null)
 
   const dragged = tasks.find((t) => t.id === draggedId) ?? null
-  const allowedTargets: readonly TaskStatus[] = canManage
-    ? TASK_STATUSES
-    : ['IN_PROGRESS', 'REVIEW']
+  const allowedTargets: readonly TaskStatus[] = canManage ? TASK_STATUSES : EMPLOYEE_STATUS_FLOW
 
   const endDrag = () => {
     setDraggedId(null)
@@ -40,15 +40,15 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
       {TASK_STATUSES.map((status) => {
         const columnTasks = tasks.filter((t) => t.status === status)
         const canDrop =
           dragged !== null &&
           dragged.status !== status &&
           allowedTargets.includes(status) &&
-          // المهمة المقترحة لا يحركها إلا المدير (اعتمادها بسحبها إلى عمود آخر)
-          (canManage || dragged.status !== 'SUGGESTED')
+          // الموظف لا يحرك إلا مهام حالاته الأربع — «مقترحة» و«منجزة» للمدير
+          (canManage || EMPLOYEE_STATUS_FLOW.includes(dragged.status))
 
         return (
           <div
@@ -98,6 +98,7 @@ export function KanbanBoard({
                   onEdit={() => onEdit(task)}
                   onDelete={() => onDelete(task)}
                   onOpenComments={() => onOpenComments(task)}
+                  onStatusChange={(s) => onStatusChange(task, s)}
                 />
               ))}
             </div>
@@ -109,7 +110,8 @@ export function KanbanBoard({
 }
 
 function KanbanCard({
-  task, isDragging, canManage, onDragStart, onDragEnd, onOpen, onEdit, onDelete, onOpenComments,
+  task, isDragging, canManage, onDragStart, onDragEnd, onOpen, onEdit, onDelete,
+  onOpenComments, onStatusChange,
 }: {
   task: Task
   isDragging: boolean
@@ -120,11 +122,12 @@ function KanbanCard({
   onEdit: () => void
   onDelete: () => void
   onOpenComments: () => void
+  onStatusChange: (status: TaskStatus) => void
 }) {
   const overdue = isTaskOverdue(task)
   const isDone = task.status === 'DONE'
-  // المقترحة لا يحركها إلا المدير — سحبها هو طريقة اعتمادها
-  const draggable = canManage || task.status !== 'SUGGESTED'
+  // الموظف يحرك مهام حالاته الأربع فقط — «مقترحة» و«منجزة» يحركهما المدير
+  const draggable = canManage || EMPLOYEE_STATUS_FLOW.includes(task.status)
 
   return (
     <div
@@ -194,6 +197,25 @@ function KanbanCard({
           {task.project_title}
         </Link>
       </div>
+
+      {/* أزرار المدير المخصصة: اعتماد المقترحة وإغلاق التي بانتظار المراجعة */}
+      {canManage && (task.status === 'SUGGESTED' || task.status === 'REVIEW') && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onStatusChange(task.status === 'SUGGESTED' ? 'OPEN' : 'DONE')
+          }}
+          className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+          title={
+            task.status === 'SUGGESTED'
+              ? 'اعتماد المهمة المقترحة — تصبح «مفتوحة»'
+              : 'إغلاق المهمة نهائياً — تصبح «منجزة»'
+          }
+        >
+          {task.status === 'SUGGESTED' ? <Check size={13} /> : <CheckCheck size={13} />}
+          {task.status === 'SUGGESTED' ? 'اعتماد المهمة' : 'إغلاق المهمة'}
+        </button>
+      )}
 
       <div className="mt-1.5 flex items-center gap-1">
         {task.assignees.length > 0 && (

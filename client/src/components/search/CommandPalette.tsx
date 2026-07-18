@@ -1,23 +1,18 @@
-import { Folder, Paperclip, Search } from 'lucide-react'
+import { Folder, History, Paperclip, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useMe } from '../../hooks/useAuth'
 import { useAllAttachments, useProjects } from '../../hooks/useProjects'
 import { useTasks } from '../../hooks/useTasks'
+import {
+  addRecentSearch, loadRecentSearches, removeRecentSearch,
+  type RecentSearchItem,
+} from '../../lib/recentSearches'
 import { arabicToLatinKeys, cn, latinToArabicKeys, stripHtml } from '../../lib/utils'
-import type { TaskStatus } from '../../types'
 import { StatusIcon } from '../tasks/StatusIcon'
 
-interface SearchResult {
-  type: 'project' | 'task' | 'attachment'
-  key: string
-  title: string
-  subtitle: string
-  color: string
-  to: string
-  status?: TaskStatus
-  /** المرفقات: يُفتح الملف نفسه في تبويب جديد بدل التنقل الداخلي */
-  href?: string
-}
+/** نتيجة بحث — نفس بنية العنصر المحفوظ في سجل «الأخيرة» */
+type SearchResult = RecentSearchItem
 
 const GROUP_LABELS = { project: 'المشاريع', task: 'المهام', attachment: 'المرفقات' } as const
 
@@ -39,12 +34,16 @@ interface CommandPaletteProps {
  *  يبحث في بيانات React Query المخزّنة محلياً، فالنتائج لحظية بلا أي طلب شبكة. */
 export function CommandPalette({ onClose }: CommandPaletteProps) {
   const navigate = useNavigate()
+  const { data: me } = useMe()
   const { data: projects = [] } = useProjects()
   const { data: tasks = [] } = useTasks()
   const { data: attachments = [] } = useAllAttachments()
 
+  const userId = me?.id ?? 0
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
+  // سجل «عمليات البحث الأخيرة» — يُعرض عندما يكون حقل البحث فارغاً
+  const [recents, setRecents] = useState<RecentSearchItem[]>(() => loadRecentSearches(userId))
 
   const results = useMemo<SearchResult[]>(() => {
     const q = query.trim().toLowerCase()
@@ -115,7 +114,13 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
   // أعد المؤشر لأول نتيجة كلما تغيّر نص البحث
   useEffect(() => setActiveIndex(0), [query])
 
+  // القائمة المعروضة: نتائج البحث، أو «الأخيرة» عندما يكون الحقل فارغاً
+  const showingRecents = !query.trim()
+  const displayed = showingRecents ? recents : results
+
   const open = (result: SearchResult) => {
+    // كل نتيجة مفتوحة تدخل سجل «الأخيرة» (بلا تكرار — تصعد للمقدمة)
+    setRecents(addRecentSearch(userId, result))
     // المرفق: افتح الملف نفسه في تبويب جديد؛ والبقية تنقّل داخلي
     if (result.href) {
       window.open(result.href, '_blank', 'noopener')
@@ -125,6 +130,11 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
     onClose()
   }
 
+  const removeRecent = (key: string) => {
+    setRecents(removeRecentSearch(userId, key))
+    setActiveIndex((i) => Math.max(0, Math.min(i, recents.length - 2)))
+  }
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
       case 'Escape':
@@ -132,14 +142,14 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         break
       case 'ArrowDown':
         e.preventDefault()
-        setActiveIndex((i) => Math.min(i + 1, results.length - 1))
+        setActiveIndex((i) => Math.min(i + 1, displayed.length - 1))
         break
       case 'ArrowUp':
         e.preventDefault()
         setActiveIndex((i) => Math.max(i - 1, 0))
         break
       case 'Enter':
-        if (results[activeIndex]) open(results[activeIndex])
+        if (displayed[activeIndex]) open(displayed[activeIndex])
         break
     }
   }
@@ -169,49 +179,72 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
           </kbd>
         </div>
 
-        {/* النتائج الفورية */}
+        {/* النتائج الفورية — أو «عمليات البحث الأخيرة» عندما يكون الحقل فارغاً */}
         <ul className="max-h-[50vh] overflow-y-auto p-2">
           {query.trim() && results.length === 0 && (
             <li className="px-3 py-8 text-center text-sm text-slate-400">لا توجد نتائج مطابقة</li>
           )}
-          {!query.trim() && (
+          {showingRecents && recents.length === 0 && (
             <li className="px-3 py-8 text-center text-sm text-slate-400">
               اكتب للبحث الفوري في كل المشاريع والمهام والمرفقات
             </li>
           )}
-          {results.map((result, index) => (
+          {showingRecents && recents.length > 0 && (
+            <li>
+              <p className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-xs font-bold text-slate-400">
+                <History size={13} />
+                عمليات البحث الأخيرة
+              </p>
+            </li>
+          )}
+          {displayed.map((result, index) => (
             <li key={result.key}>
-              {/* عنوان المجموعة عند أول نتيجة من نوعها */}
-              {result.type !== results[index - 1]?.type && (
+              {/* عنوان المجموعة عند أول نتيجة من نوعها (في وضع البحث فقط) */}
+              {!showingRecents && result.type !== displayed[index - 1]?.type && (
                 <p className="px-3 pb-1 pt-2 text-xs font-bold text-slate-400">
                   {GROUP_LABELS[result.type]}
                 </p>
               )}
-              <button
-                ref={index === activeIndex ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined}
-                onClick={() => open(result)}
-                onMouseMove={() => setActiveIndex(index)}
+              <div
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-start',
+                  'group/row flex w-full items-center rounded-lg',
                   index === activeIndex ? 'bg-blue-50' : 'hover:bg-slate-50',
                 )}
               >
-                {result.type === 'project' ? (
-                  <Folder size={17} style={{ color: result.color }} className="shrink-0" />
-                ) : result.type === 'attachment' ? (
-                  <Paperclip size={17} style={{ color: result.color }} className="shrink-0" />
-                ) : (
-                  <StatusIcon status={result.status!} size={17} className="shrink-0" />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-slate-800">
-                    {result.title}
-                  </span>
-                  {result.subtitle && (
-                    <span className="block truncate text-xs text-slate-400">{result.subtitle}</span>
+                <button
+                  ref={index === activeIndex ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined}
+                  onClick={() => open(result)}
+                  onMouseMove={() => setActiveIndex(index)}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-start"
+                >
+                  {result.type === 'project' ? (
+                    <Folder size={17} style={{ color: result.color }} className="shrink-0" />
+                  ) : result.type === 'attachment' ? (
+                    <Paperclip size={17} style={{ color: result.color }} className="shrink-0" />
+                  ) : (
+                    <StatusIcon status={result.status!} size={17} className="shrink-0" />
                   )}
-                </span>
-              </button>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-slate-800">
+                      {result.title}
+                    </span>
+                    {result.subtitle && (
+                      <span className="block truncate text-xs text-slate-400">{result.subtitle}</span>
+                    )}
+                  </span>
+                </button>
+                {/* حذف العنصر من سجل «الأخيرة» — يظهر عند التحويم */}
+                {showingRecents && (
+                  <button
+                    onClick={() => removeRecent(result.key)}
+                    className="me-2 shrink-0 rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-200 hover:text-slate-600 group-hover/row:opacity-100"
+                    title="إزالة من السجل"
+                    aria-label={`إزالة «${result.title}» من سجل البحث`}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

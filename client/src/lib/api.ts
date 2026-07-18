@@ -81,6 +81,12 @@ export const api = {
         body: JSON.stringify(credentials),
       }),
     logout: () => request<void>('/auth/logout/', { method: 'POST' }),
+    /** حفظ ترتيب المشاريع المخصص للمستخدم الحالي */
+    saveProjectOrder: (order: number[]) =>
+      request<{ project_order: number[] }>('/me/project_order/', {
+        method: 'PUT',
+        body: JSON.stringify({ order }),
+      }),
   },
   users: {
     list: () => request<User[]>('/users/'),

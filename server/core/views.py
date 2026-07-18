@@ -44,7 +44,12 @@ ALLOWED_TASK_ORDERINGS = {"created_at", "updated_at"}
 
 # ما يُسمح للموظف بتعديله في المهمة
 EMPLOYEE_EDITABLE_FIELDS = {"status"}
-EMPLOYEE_ALLOWED_STATUSES = {Task.Status.IN_PROGRESS, Task.Status.REVIEW}
+# آلة حالات الموظف: التنقل بالاتجاهين حصراً بين هذه الحالات الأربع —
+# «مقترحة» يعتمدها المدير، و«منجزة» يغلقها المدير حصراً
+EMPLOYEE_ALLOWED_STATUSES = {
+    Task.Status.OPEN, Task.Status.IN_PROGRESS,
+    Task.Status.ON_HOLD, Task.Status.REVIEW,
+}
 
 
 # ===== مؤشرات «غير مقروء» =====
@@ -248,6 +253,22 @@ class MeView(APIView):
         user = request.user if request.user.is_authenticated else None
         data = UserSerializer(user, context={"request": request}).data if user else None
         return Response({"user": data})
+
+
+class ProjectOrderView(APIView):
+    """ترتيب المشاريع المخصص: يُحفظ لكل مستخدم على حدة (مدير أو موظف)
+    وينعكس على واجهته فقط — لا يمس الترتيب الافتراضي ولا واجهات الآخرين."""
+
+    def put(self, request):
+        order = request.data.get("order")
+        if not isinstance(order, list) or not all(isinstance(pk, int) for pk in order):
+            return Response(
+                {"detail": "الترتيب يجب أن يكون قائمة معرفات مشاريع."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.project_order = order
+        request.user.save(update_fields=["project_order"])
+        return Response({"project_order": order})
 
 
 class LoginView(APIView):
@@ -601,14 +622,19 @@ class TaskViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         task = self.get_object()
         if not is_manager(request.user):
+            # قواعد الانتقال: الحالتان الحالية والجديدة يجب أن تكونا ضمن
+            # حالات الموظف الأربع — «مقترحة» و«منجزة» خارج متناوله
             if task.status == Task.Status.SUGGESTED:
                 raise PermissionDenied("المهمة المقترحة بانتظار اعتماد المدير أولاً.")
+            if task.status == Task.Status.DONE:
+                raise PermissionDenied("المهمة المنجزة مغلقة — لا يعيد فتحها إلا المدير.")
             extra_fields = set(request.data.keys()) - EMPLOYEE_EDITABLE_FIELDS
             if extra_fields:
                 raise PermissionDenied("يمكن للموظف تغيير حالة المهمة فقط.")
             if request.data.get("status") not in EMPLOYEE_ALLOWED_STATUSES:
                 raise PermissionDenied(
-                    "يمكن للموظف نقل المهمة إلى «قيد الإنجاز» أو «قيد المراجعة» فقط."
+                    "يمكن للموظف التنقل بين «مفتوحة» و«قيد الإنجاز» و«قيد الانتظار» "
+                    "و«قيد المراجعة» فقط — والإغلاق «منجزة» صلاحية المدير حصراً."
                 )
         old_assignees = set(task.assignees.values_list("id", flat=True))
         old_status = task.status

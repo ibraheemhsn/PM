@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivityLogViewSet, AttachmentViewSet, DetailsImageUploadView,
     GlobalSearchView, LoginView, LogoutView, MeView, NotificationViewSet,
+    ProjectOrderView,
     ProjectUpdateViewSet, ProjectViewSet, PushKeyView, PushSubscribeView,
     TagViewSet, TaskViewSet, UserViewSet,
 )
@@ -22,6 +23,7 @@ urlpatterns = [
     path("auth/me/", MeView.as_view(), name="auth-me"),
     path("auth/login/", LoginView.as_view(), name="auth-login"),
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
+    path("me/project_order/", ProjectOrderView.as_view(), name="me-project-order"),
     path("uploads/images/", DetailsImageUploadView.as_view(), name="details-image-upload"),
     path("push/key/", PushKeyView.as_view(), name="push-key"),
     path("push/subscribe/", PushSubscribeView.as_view(), name="push-subscribe"),

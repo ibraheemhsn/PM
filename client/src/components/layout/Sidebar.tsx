@@ -1,14 +1,15 @@
 import {
-  Archive, History, LayoutDashboard, ListTodo, LogOut, MoreVertical, Paperclip,
-  Pencil, Plus, Search, Trash2, Users,
+  Archive, ArrowDownUp, History, LayoutDashboard, ListTodo, LogOut, MoreVertical,
+  Paperclip, Pencil, Plus, Search, Trash2, Users,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { NavLink, useMatch, useNavigate } from 'react-router-dom'
 import { useAuthMutations, useMe } from '../../hooks/useAuth'
 import { useProjectMutations, useProjects } from '../../hooks/useProjects'
 import { cn } from '../../lib/utils'
-import { displayName, type Project } from '../../types'
+import { displayName, orderProjects, type Project } from '../../types'
 import { ProjectFormModal } from '../projects/ProjectFormModal'
+import { ProjectOrderModal } from '../projects/ProjectOrderModal'
 import { Avatar } from '../ui/Avatar'
 import { NotificationsBell } from './NotificationsBell'
 
@@ -41,6 +42,14 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
   const [editing, setEditing] = useState<Project | 'new' | null>(null)
   // قائمة الأدوات المنبثقة أسفل الشريط الجانبي
   const [toolsOpen, setToolsOpen] = useState(false)
+  // نافذة «ترتيب المشاريع» (سحب وإفلات — ترتيب يخص المستخدم الحالي وحده)
+  const [orderingOpen, setOrderingOpen] = useState(false)
+
+  // ترتيب المستخدم المخصص يُطبق على قائمة الشريط الجانبي
+  const orderedProjects = useMemo(
+    () => orderProjects(projects, me?.project_order ?? []),
+    [projects, me?.project_order],
+  )
 
   if (!me) return null
   const isManager = me.is_manager
@@ -112,7 +121,7 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
             {isManager ? 'لا توجد مشاريع بعد — أضف أول مشروع' : 'لا مشاريع مسندة إليك بعد'}
           </li>
         )}
-        {projects.map((project) => (
+        {orderedProjects.map((project) => (
           <li key={project.id} className="group relative">
             <NavLink
               to={`/projects/${project.id}`}
@@ -216,6 +225,17 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
                 <History size={16} />
                 سجل النشاطات
               </NavLink>
+              {/* ترتيب المشاريع المخصص — متاح للمدير والموظف على السواء */}
+              <button
+                onClick={() => {
+                  setToolsOpen(false)
+                  setOrderingOpen(true)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700/60"
+              >
+                <ArrowDownUp size={16} />
+                ترتيب المشاريع
+              </button>
               {isManager && (
                 <>
                   <NavLink
@@ -255,6 +275,7 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
           onClose={() => setEditing(null)}
         />
       )}
+      {orderingOpen && <ProjectOrderModal onClose={() => setOrderingOpen(false)} />}
     </aside>
   )
 }

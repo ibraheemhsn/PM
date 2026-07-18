@@ -42,9 +42,10 @@ class UserSerializer(serializers.ModelSerializer):
         # photo تُرسل multipart عند الرفع، أو null (JSON) للمسح عند اختيار أيقونة
         fields = [
             "id", "username", "first_name", "password", "avatar", "photo",
-            "photo_thumb", "is_manager",
+            "photo_thumb", "is_manager", "project_order",
         ]
-        read_only_fields = ["photo_thumb"]  # تُولَّد تلقائياً من photo
+        # المصغّرة تُولَّد تلقائياً، وترتيب المشاريع يُحفظ عبر نقطته المخصصة
+        read_only_fields = ["photo_thumb", "project_order"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -18,6 +18,9 @@ class User(AbstractUser):
     # — الصورة المرفوعة لها الأولوية في العرض إن وُجدت
     avatar = models.CharField("الأيقونة", max_length=20, blank=True, default="")
     photo = models.ImageField("الصورة", upload_to="avatars/", blank=True, null=True)
+    # ترتيب المشاريع المخصص لهذا المستخدم: مصفوفة معرفات مشاريع بالترتيب
+    # المفضل — يخص واجهته فقط ولا يمس ترتيب الآخرين أو الافتراضي
+    project_order = models.JSONField("ترتيب المشاريع", default=list, blank=True)
     # مصغّرة تُولَّد تلقائياً من photo — القوائم تعرضها بدل الأصل الكبير
     photo_thumb = models.ImageField(
         "مصغّرة الصورة", upload_to="avatars/thumbs/", blank=True, null=True
@@ -104,6 +107,8 @@ class Task(models.Model):
         SUGGESTED = "SUGGESTED", "مقترحة"
         OPEN = "OPEN", "مفتوحة"
         IN_PROGRESS = "IN_PROGRESS", "قيد الإنجاز"
+        # العمل معلّق بانتظار إجراء خارجي (استلام أسعار، رد طرف ثالث…)
+        ON_HOLD = "ON_HOLD", "قيد الانتظار"
         REVIEW = "REVIEW", "قيد المراجعة"
         DONE = "DONE", "منجزة"
 

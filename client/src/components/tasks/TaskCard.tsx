@@ -1,27 +1,23 @@
-import { CalendarDays, Flag, MessageCircle, Pencil, Repeat, Trash2 } from 'lucide-react'
+import {
+  CalendarDays, Check, CheckCheck, Flag, MessageCircle, Pencil, Repeat, Trash2,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, formatDate, formatDay } from '../../lib/utils'
 import {
-  isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS, RECURRENCE_LABELS,
-  STATUS_LABELS, type Task, type TaskStatus,
+  EMPLOYEE_STATUS_FLOW, isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS,
+  RECURRENCE_LABELS, STATUS_LABELS, TASK_STATUSES, type Task, type TaskStatus,
 } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { StatusIcon } from './StatusIcon'
 
-/** المدير يدوّر الحالة عبر الدورة الكاملة، والموظف بين «قيد الإنجاز» و«قيد المراجعة» فقط
- *  (القيود مفروضة على الخادم أيضاً). */
-const MANAGER_NEXT: Record<TaskStatus, TaskStatus> = {
-  SUGGESTED: 'OPEN', // اعتماد المهمة المقترحة
-  OPEN: 'IN_PROGRESS',
-  IN_PROGRESS: 'REVIEW',
-  REVIEW: 'DONE',
-  DONE: 'OPEN',
-}
-const EMPLOYEE_NEXT: Partial<Record<TaskStatus, TaskStatus>> = {
-  OPEN: 'IN_PROGRESS',
-  IN_PROGRESS: 'REVIEW',
-  REVIEW: 'IN_PROGRESS',
+/** الحالات المسموح الانتقال إليها حسب الدور — القيود مفروضة على الخادم أيضاً:
+ *  المدير: كل الحالات؛ الموظف: بالاتجاهين بين حالاته الأربع فقط،
+ *  ولا يلمس «مقترحة» (بانتظار الاعتماد) ولا «منجزة» (مغلقة). */
+function allowedTargets(task: Task, canManage: boolean): TaskStatus[] {
+  if (canManage) return TASK_STATUSES.filter((s) => s !== task.status)
+  if (!EMPLOYEE_STATUS_FLOW.includes(task.status)) return []
+  return EMPLOYEE_STATUS_FLOW.filter((s) => s !== task.status)
 }
 
 interface TaskCardProps {
@@ -41,9 +37,15 @@ interface TaskCardProps {
 export function TaskCard({
   task, showProject, canManage, onOpen, onEdit, onDelete, onOpenComments, onStatusChange,
 }: TaskCardProps) {
-  const next = canManage ? MANAGER_NEXT[task.status] : EMPLOYEE_NEXT[task.status]
+  const targets = allowedTargets(task, canManage)
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const isDone = task.status === 'DONE'
   const overdue = isTaskOverdue(task)
+
+  const changeStatus = (status: TaskStatus) => {
+    setStatusMenuOpen(false)
+    onStatusChange(status)
+  }
 
   // اكتشاف تجاوز العنوان لسطرين — عندها فقط تُعرض المنبثقة بالعنوان الكامل
   const titleRef = useRef<HTMLParagraphElement>(null)
@@ -66,21 +68,50 @@ export function TaskCard({
       )}
       style={{ borderInlineStartColor: isDone ? '#e2e8f0' : task.color || '#e2e8f0' }}
     >
-      <button
-        onClick={(e) => {
-          e.stopPropagation() // لا يفتح نافذة التعديل — هذا زر دورة الحالة
-          if (next) onStatusChange(next)
-        }}
-        disabled={!next}
-        title={
-          next
-            ? `${STATUS_LABELS[task.status]} — انقر للنقل إلى «${STATUS_LABELS[next]}»`
-            : STATUS_LABELS[task.status]
-        }
-        className="shrink-0 transition-transform enabled:hover:scale-110"
-      >
-        <StatusIcon status={task.status} />
-      </button>
+      {/* أيقونة الحالة تفتح قائمة منسدلة بالحالات المسموحة حسب الدور */}
+      <div className="relative shrink-0">
+        <button
+          onClick={(e) => {
+            e.stopPropagation() // لا يفتح نافذة التعديل — هذا زر تغيير الحالة
+            if (targets.length) setStatusMenuOpen((v) => !v)
+          }}
+          disabled={targets.length === 0}
+          title={
+            targets.length
+              ? `${STATUS_LABELS[task.status]} — انقر لتغيير الحالة`
+              : STATUS_LABELS[task.status]
+          }
+          className="transition-transform enabled:hover:scale-110"
+        >
+          <StatusIcon status={task.status} />
+        </button>
+        {statusMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-30"
+              onClick={(e) => {
+                e.stopPropagation()
+                setStatusMenuOpen(false)
+              }}
+            />
+            <div
+              className="absolute start-0 top-full z-40 mt-1 w-44 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {targets.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => changeStatus(s)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <StatusIcon status={s} size={15} />
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="min-w-0 flex-1">
         {/* العنوان على سطرين كحد أقصى — وما زاد يظهر كاملاً في منبثقة عند التحويم */}
@@ -174,6 +205,33 @@ export function TaskCard({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {/* أزرار المدير المخصصة: اعتماد المقترحة وإغلاق التي بانتظار المراجعة */}
+        {canManage && task.status === 'SUGGESTED' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              changeStatus('OPEN')
+            }}
+            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            title="اعتماد المهمة المقترحة — تصبح «مفتوحة»"
+          >
+            <Check size={13} />
+            اعتماد المهمة
+          </button>
+        )}
+        {canManage && task.status === 'REVIEW' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              changeStatus('DONE')
+            }}
+            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            title="إغلاق المهمة نهائياً — تصبح «منجزة»"
+          >
+            <CheckCheck size={13} />
+            إغلاق المهمة
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
