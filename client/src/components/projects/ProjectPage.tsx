@@ -453,18 +453,15 @@ function DetailsSection({
             />
           )}
 
-          {/* «عرض المزيد»: يوسّع النص ويكشف قسم التحديثات الفرعي */}
+          {/* لا زر «عرض المزيد» — الكرت المطوي كله قابل للنقر ليتوسع.
+              سهم لطيف أسفل النص يلمّح بإمكانية التوسيع فقط */}
           {!expanded && (
-            <button
-              onClick={() => setExpanded(true)}
-              className="mt-1 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-            >
-              <ChevronDown size={15} />
-              عرض المزيد
-            </button>
+            <div className="mt-1 flex justify-center text-blue-500">
+              <ChevronDown size={16} />
+            </div>
           )}
 
-          {/* التحديثات — قسم فرعي يظهر فقط بعد «عرض المزيد» */}
+          {/* التحديثات — قسم فرعي يظهر فقط بعد التوسيع */}
           {expanded && children && (
             <div
               id="project-updates"

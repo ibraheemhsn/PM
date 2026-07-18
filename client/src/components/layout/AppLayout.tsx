@@ -1,6 +1,7 @@
-import { Menu } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Outlet, useLocation, useMatch } from 'react-router-dom'
+import { Menu, Search } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Outlet, useLocation, useMatch } from 'react-router-dom'
+import { useMe } from '../../hooks/useAuth'
 import { enablePush, registerServiceWorker } from '../../lib/pwa'
 import { cn } from '../../lib/utils'
 import { CommandPalette } from '../search/CommandPalette'
@@ -10,12 +11,43 @@ import { Sidebar } from './Sidebar'
 /** الإطار العام: شريط جانبي (درج منزلق على الجوال) + مساحة المحتوى
  *  + اختصارات لوحة المفاتيح: K أو Ctrl+K = البحث الشامل، N = مهمة جديدة. */
 export function AppLayout() {
+  const { data: me } = useMe()
+  // الصفحة الرئيسية للمدير لوحة الإحصائيات، وللموظف قائمة مهامه
+  const homePath = me?.is_manager ? '/dashboard' : '/tasks'
+
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   // درج الشريط الجانبي على الجوال — يُغلق عند التنقل أو النقر خارجه
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
   useEffect(() => setSidebarOpen(false), [location.pathname])
+
+  // السحب من الحافة اليمنى (RTL) يفتح الدرج — مكافئ لزر الهمبرغر
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0]
+      touchStart.current = { x: t.clientX, y: t.clientY }
+    }
+    const onEnd = (e: TouchEvent) => {
+      const start = touchStart.current
+      touchStart.current = null
+      if (!start || sidebarOpen || window.innerWidth >= 1024) return
+      const t = e.changedTouches[0]
+      const dx = t.clientX - start.x
+      const dy = t.clientY - start.y
+      // بدأ من حافة اليمين، وسحب لليسار أفقياً بمسافة كافية
+      if (start.x > window.innerWidth - 32 && dx < -60 && Math.abs(dy) < 50) {
+        setSidebarOpen(true)
+      }
+    }
+    window.addEventListener('touchstart', onStart, { passive: true })
+    window.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      window.removeEventListener('touchstart', onStart)
+      window.removeEventListener('touchend', onEnd)
+    }
+  }, [sidebarOpen])
 
   // PWA: سجّل الـ Service Worker، وإن كان إذن الإشعارات ممنوحاً أصلاً
   // فأعد مزامنة اشتراك Web Push لهذا الجهاز (يتجدد endpoint أحياناً)
@@ -70,7 +102,7 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-800">
-      {/* شريط علوي للجوال: زر القائمة + الاسم */}
+      {/* شريط علوي للجوال: زر القائمة + الاسم (يوجّه للرئيسية) + البحث */}
       <header className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-slate-900 px-4 py-3 text-white lg:hidden">
         <button
           onClick={() => setSidebarOpen(true)}
@@ -79,7 +111,17 @@ export function AppLayout() {
         >
           <Menu size={20} />
         </button>
-        <span className="font-bold">شركة الفخار</span>
+        <Link to={homePath} className="font-bold hover:text-blue-300">
+          شركة الفخار
+        </Link>
+        {/* أقصى اليسار في RTL */}
+        <button
+          onClick={() => setPaletteOpen(true)}
+          aria-label="بحث"
+          className="ms-auto rounded-lg p-1 hover:bg-slate-800"
+        >
+          <Search size={20} />
+        </button>
       </header>
 
       {/* خلفية إغلاق الدرج على الجوال */}
