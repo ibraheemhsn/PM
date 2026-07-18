@@ -22,7 +22,7 @@ export function AppLayout() {
   const location = useLocation()
   useEffect(() => setSidebarOpen(false), [location.pathname])
 
-  // السحب من الحافة اليمنى (RTL) يفتح الدرج — مكافئ لزر الهمبرغر
+  // السحب من النصف الأيمن (RTL) لليسار يفتح الدرج — مكافئ لزر الهمبرغر
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   useEffect(() => {
     const onStart = (e: TouchEvent) => {
@@ -36,8 +36,12 @@ export function AppLayout() {
       const t = e.changedTouches[0]
       const dx = t.clientX - start.x
       const dy = t.clientY - start.y
-      // بدأ من حافة اليمين، وسحب لليسار أفقياً بمسافة كافية
-      if (start.x > window.innerWidth - 32 && dx < -60 && Math.abs(dy) < 50) {
+      // يبدأ من النصف الأيمن، وسحب أفقي واضح لليسار (أطول من العمودي)
+      if (
+        start.x > window.innerWidth / 2 &&
+        dx < -50 &&
+        Math.abs(dx) > Math.abs(dy) * 1.5
+      ) {
         setSidebarOpen(true)
       }
     }
