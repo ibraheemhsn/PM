@@ -114,7 +114,7 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
         )}
       </div>
 
-      <ul className="mt-2 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
+      <ul className="scrollbar-slim mt-2 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
         {isLoading && <li className="px-3 py-2 text-sm text-slate-500">جارٍ التحميل…</li>}
         {!isLoading && projects.length === 0 && (
           <li className="px-3 py-2 text-sm text-slate-500">

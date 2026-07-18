@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* إخفاء شريط التمرير تماماً مع بقاء التمرير عاملاً (قائمة المشاريع) */
+.scrollbar-slim {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge قديم */
+}
+.scrollbar-slim::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* Chrome/Safari */
+}
+
 /* ===== تنسيقات المحتوى الغني (مشتركة بين المحرر ووضع القراءة) =====
    الحشوة والارتفاع الأدنى يضيفهما المحرر وحده في RichTextEditor.tsx */
 .rich-text {
