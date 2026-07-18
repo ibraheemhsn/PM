@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import { haptics } from '../lib/haptics'
 
 /** مكافئ ويب لمنطق «تجاوز السحب عند الحدود» (Overscroll / Pull-to-action):
  *  - أعلى الصفحة (scrollTop ≤ 0) + سحب لأسفل قوي  → المشروع السابق
@@ -43,10 +44,10 @@ export function useEdgePullNavigate(options: {
     const setPullValue = (v: number) => {
       pullRef.current = v
       setPull(v)
-      // اهتزاز خفيف (10ms) لحظة بلوغ العتبة — عند ظهور «أفلت للانتقال»
-      // الأخضر، مرة واحدة فقط. أندرويد يدعمه، وiOS يتجاهله بأمان
+      // تأثير لمسي متوسط لحظة بلوغ العتبة — عند ظهور «أفلت للانتقال»
+      // الأخضر، مرة واحدة فقط لكل سحبة
       const past = Math.abs(v) >= threshold
-      if (past && !passedThreshold) navigator.vibrate?.(10)
+      if (past && !passedThreshold) haptics.medium()
       passedThreshold = past
     }
 

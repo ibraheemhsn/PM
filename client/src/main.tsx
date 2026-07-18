@@ -3,12 +3,16 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { haptics } from './lib/haptics'
 import './index.css'
 
 const queryClient = new QueryClient({
-  // أي عملية حفظ تفشل تُظهر رسالة للمستخدم بدل الفشل الصامت
+  // نقطة مركزية لكل عمليات الحفظ: اهتزاز خفيف عند النجاح (إرسال نموذج/حفظ)
+  // ونمط خطأ عند الفشل — يغطي كل النماذج والإجراءات دفعةً واحدة
   mutationCache: new MutationCache({
+    onSuccess: () => haptics.light(),
     onError: (error) => {
+      haptics.error()
       const message = error instanceof Error ? error.message : String(error)
       if (message.includes('API 403')) {
         window.alert(

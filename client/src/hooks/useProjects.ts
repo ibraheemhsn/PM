@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type ProjectInput } from '../lib/api'
+import { haptics } from '../lib/haptics'
 
 export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: api.projects.list })
@@ -50,10 +51,17 @@ export function useProjectMutations() {
         api.projects.update(id, data),
       onSuccess: invalidate,
     }),
-    remove: useMutation({ mutationFn: api.projects.remove, onSuccess: invalidate }),
+    // الإجراءات الحساسة: تأثير «تحذير» لحظة البدء (onMutate)
+    remove: useMutation({
+      mutationFn: api.projects.remove, onMutate: haptics.warning, onSuccess: invalidate,
+    }),
     restore: useMutation({ mutationFn: api.projects.restore, onSuccess: invalidate }),
-    purge: useMutation({ mutationFn: api.projects.purge, onSuccess: invalidate }),
-    archive: useMutation({ mutationFn: api.projects.archive, onSuccess: invalidate }),
+    purge: useMutation({
+      mutationFn: api.projects.purge, onMutate: haptics.warning, onSuccess: invalidate,
+    }),
+    archive: useMutation({
+      mutationFn: api.projects.archive, onMutate: haptics.warning, onSuccess: invalidate,
+    }),
     unarchive: useMutation({ mutationFn: api.projects.unarchive, onSuccess: invalidate }),
     // سير مراجعة التفاصيل الفنية: اقتراح (موظف) ← اعتماد أو تراجع (مدير)
     proposeDetails: useMutation({
@@ -101,7 +109,9 @@ export function useAttachmentMutations(projectId?: number) {
         api.attachments.update(id, data),
       onSuccess: invalidate,
     }),
-    remove: useMutation({ mutationFn: api.attachments.remove, onSuccess: invalidate }),
+    remove: useMutation({
+      mutationFn: api.attachments.remove, onMutate: haptics.warning, onSuccess: invalidate,
+    }),
   }
 }
 

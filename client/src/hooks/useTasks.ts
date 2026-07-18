@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { api, type TaskInput } from '../lib/api'
+import { haptics } from '../lib/haptics'
 import type { Task } from '../types'
 
 export function useTasks() {
@@ -52,12 +53,21 @@ export function useTaskMutations() {
     update: useMutation({
       mutationFn: ({ id, data }: { id: number; data: Partial<TaskInput> }) =>
         api.tasks.update(id, data),
-      onSuccess: invalidate,
+      // إنجاز المهمة يستحق تأثير «نجاح» أوضح — يحلّ محل الاهتزاز الخفيف العام
+      // (يعمل بعده لأن مستمع المثيل يُنفَّذ بعد مستمع الكاش المركزي)
+      onSuccess: (_data, variables) => {
+        if (variables.data.status === 'DONE') haptics.success()
+        invalidate()
+      },
     }),
-    // حذف ناعم ← المحذوفات، ومنها استعادة أو حذف نهائي
-    remove: useMutation({ mutationFn: api.tasks.remove, onSuccess: invalidate }),
+    // حذف ناعم ← المحذوفات، ومنها استعادة أو حذف نهائي (إجراء حساس: تحذير)
+    remove: useMutation({
+      mutationFn: api.tasks.remove, onMutate: haptics.warning, onSuccess: invalidate,
+    }),
     restore: useMutation({ mutationFn: api.tasks.restore, onSuccess: invalidate }),
-    purge: useMutation({ mutationFn: api.tasks.purge, onSuccess: invalidate }),
+    purge: useMutation({
+      mutationFn: api.tasks.purge, onMutate: haptics.warning, onSuccess: invalidate,
+    }),
   }
 }
 
