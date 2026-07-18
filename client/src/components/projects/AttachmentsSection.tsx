@@ -232,34 +232,38 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
               <X size={15} />
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          {/* على الجوال: الوصف بعرض كامل، ثم التصنيف والزر في صف تحته —
+              لتجنّب فيضان الحقول خارج الشاشة الضيقة */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               autoFocus
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitUpload()}
               placeholder="وصف المرفق… مثال: نسخة العقد الموقعة"
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 sm:flex-1"
             />
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm outline-none focus:border-blue-400"
-            >
-              <option value="">بلا تصنيف</option>
-              {ATTACHMENT_CATEGORIES.map((value) => (
-                <option key={value} value={value}>
-                  {ATTACHMENT_CATEGORY_LABELS[value]}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={submitUpload}
-              disabled={create.isPending}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {create.isPending ? 'جارٍ الرفع…' : 'رفع'}
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm outline-none focus:border-blue-400 sm:flex-none"
+              >
+                <option value="">بلا تصنيف</option>
+                {ATTACHMENT_CATEGORIES.map((value) => (
+                  <option key={value} value={value}>
+                    {ATTACHMENT_CATEGORY_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={submitUpload}
+                disabled={create.isPending}
+                className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {create.isPending ? 'جارٍ الرفع…' : 'رفع'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -326,39 +330,42 @@ export function AttachmentsSection({ projectId }: { projectId: number }) {
               </div>
 
               {editingId === attachment.id ? (
-                <div className="mt-1.5 flex items-center gap-2">
+                // على الجوال: الوصف بعرض كامل، ثم التصنيف والأزرار في صف تحته
+                <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
                   <input
                     autoFocus
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                    className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-blue-400"
+                    className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-blue-400 sm:flex-1"
                   />
-                  <select
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
-                  >
-                    <option value="">بلا تصنيف</option>
-                    {ATTACHMENT_CATEGORIES.map((value) => (
-                      <option key={value} value={value}>
-                        {ATTACHMENT_CATEGORY_LABELS[value]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    className="rounded-lg px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    onClick={saveEdit}
-                    disabled={update.isPending}
-                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    حفظ
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 sm:flex-none"
+                    >
+                      <option value="">بلا تصنيف</option>
+                      {ATTACHMENT_CATEGORIES.map((value) => (
+                        <option key={value} value={value}>
+                          {ATTACHMENT_CATEGORY_LABELS[value]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="shrink-0 rounded-lg px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      disabled={update.isPending}
+                      className="shrink-0 rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      حفظ
+                    </button>
+                  </div>
                 </div>
               ) : (
                 attachment.description && (
