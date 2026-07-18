@@ -32,6 +32,7 @@ export function useEdgePullNavigate(options: {
     let active = false
     let startY = 0
     let dir: 0 | 1 | -1 = 0 // 1 = سحب لأسفل (سابق)، -1 = سحب لأعلى (تالي)
+    let passedThreshold = false // لضمان اهتزاز واحد عند لحظة العبور فقط
 
     // اللمس/الجوال فقط — يُقيَّم لحظة كل إيماءة كي يعمل حتى لو بُدّل عرض
     // النافذة أو فُعِّل Device Mode بعد التحميل (بلا إعادة تحميل)
@@ -42,6 +43,11 @@ export function useEdgePullNavigate(options: {
     const setPullValue = (v: number) => {
       pullRef.current = v
       setPull(v)
+      // اهتزاز خفيف (10ms) لحظة بلوغ العتبة — عند ظهور «أفلت للانتقال»
+      // الأخضر، مرة واحدة فقط. أندرويد يدعمه، وiOS يتجاهله بأمان
+      const past = Math.abs(v) >= threshold
+      if (past && !passedThreshold) navigator.vibrate?.(10)
+      passedThreshold = past
     }
 
     const onStart = (e: TouchEvent) => {
@@ -49,6 +55,7 @@ export function useEdgePullNavigate(options: {
       active = true
       startY = e.touches[0].clientY
       dir = 0
+      passedThreshold = false
     }
 
     const onMove = (e: TouchEvent) => {
