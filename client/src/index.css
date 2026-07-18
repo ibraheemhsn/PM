@@ -13,6 +13,23 @@
   display: none; /* Chrome/Safari */
 }
 
+/* التنقل بين المشاريع بالسحب عند الحدود — دخول «انزلاق وتلاشي» (Fade & Slide):
+   «السابق» ينزلق من الأعلى، و«التالي» يصعد من الأسفل */
+@keyframes project-enter-from-top {
+  from { opacity: 0; transform: translateY(-28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes project-enter-from-bottom {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.project-enter-prev {
+  animation: project-enter-from-top 0.3s ease-out;
+}
+.project-enter-next {
+  animation: project-enter-from-bottom 0.3s ease-out;
+}
+
 /* ===== تنسيقات المحتوى الغني (مشتركة بين المحرر ووضع القراءة) =====
    الحشوة والارتفاع الأدنى يضيفهما المحرر وحده في RichTextEditor.tsx */
 .rich-text {

@@ -1,14 +1,19 @@
 import {
-  Archive, ArchiveRestore, Check, ChevronDown, ChevronUp, Eye, FileOutput,
-  FileSpreadsheet, Folder, FolderDown, Pencil, Plus, Save, Trash2, Undo2,
+  Archive, ArchiveRestore, Check, ChevronDown, ChevronUp, ChevronsDown,
+  ChevronsUp, Eye, FileOutput, FileSpreadsheet, Folder, FolderDown, Pencil,
+  Plus, Save, Trash2, Undo2,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import {
+  useLocation, useNavigate, useOutletContext, useParams, useSearchParams,
+} from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
+import { useEdgePullNavigate } from '../../hooks/useEdgePullNavigate'
 import { useArchivedProjects, useProjectMutations, useProjects } from '../../hooks/useProjects'
 import { useMarkTasksSeen, useTaskMutations, useTasks } from '../../hooks/useTasks'
 import { cn, externalHref, formatDate, stripHtml } from '../../lib/utils'
 import { displayName, type Project, type Task } from '../../types'
+import type { MainScrollContext } from '../layout/AppLayout'
 import { RichTextEditor } from '../editor/RichTextEditor'
 import { TaskCard } from '../tasks/TaskCard'
 import { TaskCommentsModal } from '../tasks/TaskCommentsModal'
@@ -22,9 +27,13 @@ import { UpdatesSection } from './UpdatesSection'
 export function ProjectPage() {
   const { projectId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const { scrollRef } = useOutletContext<MainScrollContext>()
   // معامل focus من الإشعارات: "task-12" أو "details" أو "updates"
   const [searchParams, setSearchParams] = useSearchParams()
   const focus = searchParams.get('focus')
+  // اتجاه دخول الصفحة عند القدوم بالسحب — لأنيميشن الانزلاق والتلاشي
+  const enterDir = (location.state as { pullDir?: 'prev' | 'next' } | null)?.pullDir
 
   const { data: me } = useMe()
   const isManager = !!me?.is_manager
@@ -48,6 +57,31 @@ export function ProjectPage() {
 
   // مهام المشروع المعروضة تُعلَّم مقروءةً (تُميَّز صفراء حتى المغادرة)
   useMarkTasksSeen(projectTasks)
+
+  // التنقل بين المشاريع بالسحب عند الحدود — ترتيبها كما في الشريط الجانبي
+  const currentIndex = projects.findIndex((p) => p.id === Number(projectId))
+  const prevProject = currentIndex > 0 ? projects[currentIndex - 1] : undefined
+  const nextProject =
+    currentIndex >= 0 && currentIndex < projects.length - 1
+      ? projects[currentIndex + 1]
+      : undefined
+
+  const goToProject = (target: Project | undefined, dir: 'prev' | 'next') => {
+    if (!target) return
+    scrollRef.current?.scrollTo({ top: 0 }) // ابدأ من أعلى الصفحة الجديدة
+    navigate(`/projects/${target.id}`, { state: { pullDir: dir } })
+  }
+
+  const { pull, threshold } = useEdgePullNavigate({
+    scrollRef,
+    hasPrev: !!prevProject,
+    hasNext: !!nextProject,
+    onPrev: () => goToProject(prevProject, 'prev'),
+    onNext: () => goToProject(nextProject, 'next'),
+  })
+  const pulling = pull !== 0
+  // نسبة تقدّم السحب نحو العتبة (0→1) — لتلاشي/ظهور مؤشر الهدف
+  const progress = Math.min(Math.abs(pull) / threshold, 1)
 
   // التمرير إلى العنصر المستهدف القادم من إشعار، ثم تنظيف الرابط بعد انتهاء الوميض
   useEffect(() => {
@@ -92,8 +126,40 @@ export function ProjectPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
-      {/* ترويسة المشروع */}
+    <>
+      {/* مؤشرا السحب: هدف السابق من الأعلى، والتالي من الأسفل — يظهران أثناء
+          السحب فقط وتزداد شفافيتهما مع التقدّم نحو العتبة */}
+      {pulling && pull > 0 && prevProject && (
+        <PullHint
+          direction="prev"
+          label={prevProject.title}
+          progress={progress}
+          ready={pull >= threshold}
+        />
+      )}
+      {pulling && pull < 0 && nextProject && (
+        <PullHint
+          direction="next"
+          label={nextProject.title}
+          progress={progress}
+          ready={-pull >= threshold}
+        />
+      )}
+
+      {/* المحتوى: ينزلق مع الإصبع أثناء السحب (transform) ويرتد بنعومة عند
+          الإفلات (transition)، ويدخل بأنيميشن انزلاق وتلاشي عند التبديل.
+          key يعيد تشغيل أنيميشن الدخول عند تغيّر المشروع */}
+      <div
+        key={project.id}
+        style={{ transform: pull ? `translateY(${pull}px)` : undefined }}
+        className={cn(
+          'mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8',
+          !pulling && 'transition-transform duration-200 ease-out',
+          enterDir === 'prev' && 'project-enter-prev',
+          enterDir === 'next' && 'project-enter-next',
+        )}
+      >
+        {/* ترويسة المشروع */}
       <header>
         <div className="flex flex-wrap items-center gap-3">
           <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
@@ -269,6 +335,36 @@ export function ProjectPage() {
       {commentsTask && (
         <TaskCommentsModal task={commentsTask} onClose={() => setCommentsTask(null)} />
       )}
+      </div>
+    </>
+  )
+}
+
+/** مؤشر السحب: شريحة عائمة أعلى/أسفل الشاشة تعرض المشروع الهدف وتزداد
+ *  وضوحاً مع تقدّم السحب — وتتحول للأخضر عند بلوغ العتبة (جاهز للإفلات). */
+function PullHint({
+  direction, label, progress, ready,
+}: { direction: 'prev' | 'next'; label: string; progress: number; ready: boolean }) {
+  return (
+    <div
+      className={cn(
+        'pointer-events-none fixed inset-x-0 z-30 flex justify-center px-4',
+        direction === 'prev' ? 'top-16' : 'bottom-6',
+      )}
+      style={{ opacity: Math.max(progress, 0.35) }}
+    >
+      <span
+        className={cn(
+          'flex max-w-[90%] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-colors',
+          ready ? 'bg-emerald-600' : 'bg-slate-800/90',
+        )}
+      >
+        {direction === 'prev' ? <ChevronsDown size={14} /> : <ChevronsUp size={14} />}
+        <span className="truncate">
+          {ready ? 'أفلت للانتقال' : direction === 'prev' ? 'المشروع السابق' : 'المشروع التالي'}
+        </span>
+        <span className="truncate text-white/70">— {label}</span>
+      </span>
     </div>
   )
 }

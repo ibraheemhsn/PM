@@ -1,5 +1,5 @@
 import { Menu, Search } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { enablePush, registerServiceWorker } from '../../lib/pwa'
@@ -8,9 +8,16 @@ import { CommandPalette } from '../search/CommandPalette'
 import { TaskFormModal } from '../tasks/TaskFormModal'
 import { Sidebar } from './Sidebar'
 
+/** سياق يمرَّر للصفحات عبر Outlet — مرجع حاوية التمرير الرئيسية،
+ *  تستخدمه صفحة المشروع للتنقل بالسحب عند الحدود (Overscroll). */
+export interface MainScrollContext {
+  scrollRef: RefObject<HTMLElement | null>
+}
+
 /** الإطار العام: شريط جانبي (درج منزلق على الجوال) + مساحة المحتوى
  *  + اختصارات لوحة المفاتيح: K أو Ctrl+K = البحث الشامل، N = مهمة جديدة. */
 export function AppLayout() {
+  const mainRef = useRef<HTMLElement>(null)
   const { data: me } = useMe()
   // الصفحة الرئيسية للمدير لوحة الإحصائيات، وللموظف قائمة مهامه
   const homePath = me?.is_manager ? '/dashboard' : '/tasks'
@@ -151,8 +158,8 @@ export function AppLayout() {
         />
       </div>
 
-      <main className="flex-1 overflow-y-auto pt-12 lg:pt-0">
-        <Outlet />
+      <main ref={mainRef} className="flex-1 overflow-y-auto pt-12 lg:pt-0">
+        <Outlet context={{ scrollRef: mainRef } satisfies MainScrollContext} />
       </main>
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
       {newTaskOpen && (
