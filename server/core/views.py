@@ -990,12 +990,15 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 class GlobalSearchView(APIView):
     """بحث Ctrl+K الشامل: عناوين المشاريع وتفاصيلها + عناوين المهام
-    + المرفقات (اسم الملف والوصف)."""
+    + المرفقات (اسم الملف والوصف) + نصوص التعليقات والتحديثات."""
 
     def get(self, request):
         query = request.query_params.get("q", "").strip()
         if not query:
-            return Response({"projects": [], "tasks": [], "attachments": []})
+            return Response({
+                "projects": [], "tasks": [], "attachments": [],
+                "comments": [], "updates": [],
+            })
 
         projects = Project.objects.filter(
             deleted_at__isnull=True, archived_at__isnull=True
@@ -1022,9 +1025,50 @@ class GlobalSearchView(APIView):
             .filter(Q(file_name__icontains=query) | Q(description__icontains=query))[:10]
         )
 
+        # التعليقات: نصّها فقط، مع بيانات المهمة والمشروع للتنقّل — وغير المدير
+        # يرى تعليقات المهام المُسنَدة إليه فقط (نفس نطاق بحث المهام أعلاه)
+        comments_qs = (
+            TaskComment.objects.select_related("author", "task", "task__project")
+            .filter(
+                body__icontains=query,
+                task__deleted_at__isnull=True,
+                task__project__deleted_at__isnull=True,
+                task__project__archived_at__isnull=True,
+            )
+        )
+        if not is_manager(request.user):
+            comments_qs = comments_qs.filter(task__assignees=request.user)
+        comments = [
+            {
+                "id": c.id,
+                "body": c.body,
+                "task": c.task_id,
+                "task_title": c.task.title,
+                "project": c.task.project_id,
+                "project_title": c.task.project.title,
+                "project_color": c.task.project.color,
+                "author": UserBriefSerializer(c.author).data if c.author else None,
+                "created_at": c.created_at,
+            }
+            for c in comments_qs.order_by("-created_at")[:10]
+        ]
+
+        # التحديثات: نصّها، مرئية للجميع (كما في ProjectUpdateViewSet)
+        updates = (
+            ProjectUpdate.objects.select_related("author", "project")
+            .filter(
+                body__icontains=query,
+                deleted_at__isnull=True,
+                project__deleted_at__isnull=True,
+            )
+            .order_by("-created_at")[:10]
+        )
+
         context = {"request": request}
         return Response({
             "projects": ProjectSerializer(projects, many=True, context=context).data,
             "tasks": TaskSerializer(tasks, many=True, context=context).data,
             "attachments": AttachmentSerializer(attachments, many=True, context=context).data,
+            "comments": comments,
+            "updates": ProjectUpdateSerializer(updates, many=True, context=context).data,
         })

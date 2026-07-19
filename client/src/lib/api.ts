@@ -3,8 +3,9 @@
  *  - المصادقة عبر جلسات Django: نرفق ترويسة X-CSRFToken من الكعكة
  *    (تُزرع عند نداء /auth/me/ أول مرة) مع كل طلب غير GET. */
 import type {
-  ActivityEntry, AppNotification, Attachment, Project, ProjectUpdate, Tag,
-  Task, TaskComment, TaskPriority, TaskRecurrence, TaskStatus, User, UserBrief,
+  ActivityEntry, AppNotification, Attachment, GlobalSearchResults, Project,
+  ProjectUpdate, Tag, Task, TaskComment, TaskPriority, TaskRecurrence,
+  TaskStatus, User, UserBrief,
 } from '../types'
 
 export interface ProjectInput {
@@ -214,6 +215,12 @@ export const api = {
   },
   tags: {
     list: () => request<Tag[]>('/tags/'),
+  },
+  search: {
+    /** البحث الشامل من الخادم — المستخدَم منه في اللوحة: التعليقات والتحديثات
+     *  (نصوصها غير مخزّنة محلياً)، والباقي يُبحث محلياً فورياً */
+    global: (query: string) =>
+      request<GlobalSearchResults>(`/search/?q=${encodeURIComponent(query)}`),
   },
   activity: {
     /** سجل النشاطات عبر كل المشاريع: آخر 300 حدث، الأحدث أولاً */

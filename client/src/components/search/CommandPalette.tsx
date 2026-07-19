@@ -1,9 +1,11 @@
-import { Folder, History, Paperclip, Search, X } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Folder, History, Megaphone, MessageSquare, Paperclip, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useAllAttachments, useProjects } from '../../hooks/useProjects'
 import { useTasks } from '../../hooks/useTasks'
+import { api } from '../../lib/api'
 import {
   addRecentSearch, loadRecentSearches, removeRecentSearch,
   type RecentSearchItem,
@@ -14,7 +16,10 @@ import { StatusIcon } from '../tasks/StatusIcon'
 /** نتيجة بحث — نفس بنية العنصر المحفوظ في سجل «الأخيرة» */
 type SearchResult = RecentSearchItem
 
-const GROUP_LABELS = { project: 'المشاريع', task: 'المهام', attachment: 'المرفقات' } as const
+const GROUP_LABELS = {
+  project: 'المشاريع', task: 'المهام', attachment: 'المرفقات',
+  comment: 'التعليقات', update: 'التحديثات',
+} as const
 
 /** مقتطف نصي حول موضع التطابق — لعرض سياق النتيجة */
 function excerpt(text: string, query: string, radius = 35): string {
@@ -44,6 +49,22 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   // سجل «عمليات البحث الأخيرة» — يُعرض عندما يكون حقل البحث فارغاً
   const [recents, setRecents] = useState<RecentSearchItem[]>(() => loadRecentSearches(userId))
+
+  // البحث في التعليقات والتحديثات يجري على الخادم (نصوصها غير مخزّنة محلياً).
+  // نؤخّر الاستعلام قليلاً كي لا يُطلق مع كل ضغطة مفتاح.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const q = query.trim()
+    const timer = setTimeout(() => setDebouncedQuery(q), 220)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  const { data: serverResults, isFetching: searchingServer } = useQuery({
+    queryKey: ['global-search', debouncedQuery],
+    queryFn: () => api.search.global(debouncedQuery),
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 30_000,
+  })
 
   const results = useMemo<SearchResult[]>(() => {
     const q = query.trim().toLowerCase()
@@ -108,8 +129,39 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
       .filter((r): r is SearchResult => r !== null)
       .slice(0, 6)
 
-    return [...projectHits, ...taskHits, ...attachmentHits]
-  }, [query, projects, tasks, attachments])
+    // نتائج الخادم للتعليقات والتحديثات — المقتطف حول موضع التطابق هو العنوان
+    const serverQuery = debouncedQuery.toLowerCase()
+    const snippet = (text: string) => {
+      const match = findMatch(text) ?? serverQuery
+      return excerpt(text, match) || text.slice(0, 70)
+    }
+
+    const commentHits: SearchResult[] = (serverResults?.comments ?? []).map((c) => {
+      const text = stripHtml(c.body)
+      return {
+        type: 'comment' as const,
+        key: `comment-${c.id}`,
+        title: snippet(text),
+        subtitle: `تعليق في «${c.task_title}» — ${c.project_title}`,
+        color: c.project_color,
+        to: `/projects/${c.project}?focus=task-${c.task}`,
+      }
+    })
+
+    const updateHits: SearchResult[] = (serverResults?.updates ?? []).map((u) => {
+      const text = stripHtml(u.body)
+      return {
+        type: 'update' as const,
+        key: `update-${u.id}`,
+        title: snippet(text),
+        subtitle: `تحديث — ${u.project_title}`,
+        color: u.project_color,
+        to: `/projects/${u.project}?focus=updates`,
+      }
+    })
+
+    return [...projectHits, ...taskHits, ...attachmentHits, ...commentHits, ...updateHits]
+  }, [query, debouncedQuery, projects, tasks, attachments, serverResults])
 
   // أعد المؤشر لأول نتيجة كلما تغيّر نص البحث
   useEffect(() => setActiveIndex(0), [query])
@@ -171,7 +223,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="ابحث في المشاريع والتفاصيل والمهام والمرفقات…"
+            placeholder="ابحث في المشاريع والمهام والمرفقات والتعليقات والتحديثات…"
             className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-slate-400"
           />
           <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
@@ -182,11 +234,13 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         {/* النتائج الفورية — أو «عمليات البحث الأخيرة» عندما يكون الحقل فارغاً */}
         <ul className="max-h-[50vh] overflow-y-auto p-2">
           {query.trim() && results.length === 0 && (
-            <li className="px-3 py-8 text-center text-sm text-slate-400">لا توجد نتائج مطابقة</li>
+            <li className="px-3 py-8 text-center text-sm text-slate-400">
+              {searchingServer ? 'جارٍ البحث…' : 'لا توجد نتائج مطابقة'}
+            </li>
           )}
           {showingRecents && recents.length === 0 && (
             <li className="px-3 py-8 text-center text-sm text-slate-400">
-              اكتب للبحث الفوري في كل المشاريع والمهام والمرفقات
+              اكتب للبحث في كل المشاريع والمهام والمرفقات والتعليقات والتحديثات
             </li>
           )}
           {showingRecents && recents.length > 0 && (
@@ -221,6 +275,10 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
                     <Folder size={17} style={{ color: result.color }} className="shrink-0" />
                   ) : result.type === 'attachment' ? (
                     <Paperclip size={17} style={{ color: result.color }} className="shrink-0" />
+                  ) : result.type === 'comment' ? (
+                    <MessageSquare size={17} style={{ color: result.color }} className="shrink-0" />
+                  ) : result.type === 'update' ? (
+                    <Megaphone size={17} style={{ color: result.color }} className="shrink-0" />
                   ) : (
                     <StatusIcon status={result.status!} size={17} className="shrink-0" />
                   )}

@@ -140,6 +140,29 @@ export interface ProjectUpdate {
   updated_at: string
 }
 
+/** تعليق مطابق في البحث الشامل — نصّه مع بيانات المهمة والمشروع للتنقّل */
+export interface SearchComment {
+  id: number
+  body: string
+  task: number
+  task_title: string
+  project: number
+  project_title: string
+  project_color: string
+  author: UserBrief | null
+  created_at: string
+}
+
+/** نتائج البحث الشامل من الخادم — المشاريع والمهام والمرفقات محلية،
+ *  أما التعليقات والتحديثات فمن الخادم لأنها غير مخزّنة في ذاكرة الواجهة */
+export interface GlobalSearchResults {
+  projects: Project[]
+  tasks: Task[]
+  attachments: Attachment[]
+  comments: SearchComment[]
+  updates: ProjectUpdate[]
+}
+
 /** تصنيفات المرفقات — أساس الفلترة السريعة في أقسام المرفقات */
 export type AttachmentCategory =
   | 'OUTGOING'

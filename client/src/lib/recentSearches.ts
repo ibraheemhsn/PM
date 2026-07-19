@@ -8,7 +8,7 @@ import type { TaskStatus } from '../types'
 
 /** نتيجة محفوظة — نفس حقول نتيجة البحث الضرورية لإعادة عرضها وفتحها */
 export interface RecentSearchItem {
-  type: 'project' | 'task' | 'attachment'
+  type: 'project' | 'task' | 'attachment' | 'comment' | 'update'
   key: string
   title: string
   subtitle: string

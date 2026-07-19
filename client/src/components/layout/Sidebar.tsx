@@ -1,6 +1,6 @@
 import {
   Archive, ArrowDownUp, History, LayoutDashboard, ListTodo, LogOut, MoreVertical,
-  Paperclip, Pencil, Plus, Search, Trash2, Users,
+  Paperclip, Pencil, Plus, Search, Sun, Trash2, Users,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NavLink, useMatch, useNavigate } from 'react-router-dom'
@@ -86,6 +86,10 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
 
       {/* التنقل الرئيسي */}
       <nav className="space-y-0.5 px-3 pt-3">
+        <NavLink to="/my-day" className={navLinkClass}>
+          <Sun size={17} />
+          يومي
+        </NavLink>
         {isManager && (
           <NavLink to="/dashboard" className={navLinkClass}>
             <LayoutDashboard size={17} />

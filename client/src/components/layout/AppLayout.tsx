@@ -1,5 +1,5 @@
 import {
-  Archive, ArrowDownUp, History, Menu, Paperclip, Trash2, Users,
+  Archive, ArrowDownUp, History, LayoutDashboard, Menu, Paperclip, Trash2, Users,
 } from 'lucide-react'
 import {
   useEffect, useRef, useState, type ReactNode, type RefObject,
@@ -229,6 +229,11 @@ export function AppLayout() {
               topBarHidden && '-translate-y-[200%]',
             )}
           >
+            {isManager && (
+              <UserMenuLink to="/dashboard" icon={<LayoutDashboard size={17} />} onClick={closeUserMenu}>
+                لوحة الإحصائيات
+              </UserMenuLink>
+            )}
             {isManager && (
               <UserMenuLink to="/employees" icon={<Users size={17} />} onClick={closeUserMenu}>
                 الموظفون

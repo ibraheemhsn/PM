@@ -4,6 +4,7 @@ import { EmployeesPage } from './components/employees/EmployeesPage'
 import { AppLayout } from './components/layout/AppLayout'
 import { ActivityPage } from './components/activity/ActivityPage'
 import { DashboardPage } from './components/dashboard/DashboardPage'
+import { MyDayPage } from './components/dashboard/MyDayPage'
 import { NotificationsPage } from './components/notifications/NotificationsPage'
 import { ArchivePage } from './components/projects/ArchivePage'
 import { AttachmentsPage } from './components/projects/AttachmentsPage'
@@ -28,15 +29,17 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        {/* الصفحة الرئيسية: لوحة الإحصائيات للمدير، والمهام للموظف */}
+        {/* الصفحة الرئيسية: لوحة الإحصائيات للمدير، و«يومي» الشخصية للموظف */}
         <Route
           index
-          element={<Navigate to={me.is_manager ? '/dashboard' : '/tasks'} replace />}
+          element={<Navigate to={me.is_manager ? '/dashboard' : '/my-day'} replace />}
         />
         <Route
           path="/dashboard"
-          element={me.is_manager ? <DashboardPage /> : <Navigate to="/tasks" replace />}
+          element={me.is_manager ? <DashboardPage /> : <Navigate to="/my-day" replace />}
         />
+        {/* «يومي»: نظرة شخصية للجميع — مهامي المستحقة والمتأخرة وما ينتظر ردّي */}
+        <Route path="/my-day" element={<MyDayPage />} />
         <Route path="/tasks" element={<AllTasksPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />

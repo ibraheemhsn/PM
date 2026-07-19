@@ -1,12 +1,12 @@
-import { FolderKanban, LayoutDashboard, ListTodo, Search } from 'lucide-react'
+import { FolderKanban, ListTodo, Search, Sun } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 
 /** شريط التنقل السفلي — للجوال فقط (يختفي على الشاشات الكبيرة).
  *  عائم دائري الحواف، ويصبح شبه شفاف أثناء تمرير الصفحة (dimmed)
  *  ليكشف المحتوى خلفه، ثم يعود معتماً عند توقف التمرير.
- *  الرئيسية → لوحة الإحصائيات (توجَّه للمهام تلقائياً لغير المدير)،
- *  والبحث يفتح نافذة البحث الشامل فوراً. */
+ *  «يومي» هي الصفحة الشخصية الرئيسية للجميع، والبحث يفتح
+ *  نافذة البحث الشامل فوراً. */
 export function BottomNav({
   onOpenSearch,
   dimmed = false,
@@ -30,9 +30,9 @@ export function BottomNav({
       )}
       aria-label="التنقل السفلي"
     >
-      <NavLink to="/dashboard" className={itemClass}>
-        <LayoutDashboard size={20} />
-        الرئيسية
+      <NavLink to="/my-day" className={itemClass}>
+        <Sun size={20} />
+        يومي
       </NavLink>
       <NavLink to="/projects" end className={itemClass}>
         <FolderKanban size={20} />
