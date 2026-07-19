@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useProjects } from '../../hooks/useProjects'
 import { useTags, useTaskMutations } from '../../hooks/useTasks'
@@ -33,6 +33,19 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
   const { create, update } = useTaskMutations()
 
   const [title, setTitle] = useState(task?.title ?? '')
+  // عند التعديل: العنوان للقراءة فقط حتى يُنقر عليه — يمنع التعديل غير المقصود.
+  // عند الإنشاء: الحقل قابل للكتابة فوراً.
+  const [titleEditable, setTitleEditable] = useState(!task)
+  const titleRef = useRef<HTMLTextAreaElement>(null)
+
+  // لحظة تفعيل التحرير: ركّز الحقل وضع مؤشر الكتابة في نهاية العنوان
+  useEffect(() => {
+    const el = titleRef.current
+    if (titleEditable && el) {
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+    }
+  }, [titleEditable])
   const [projectId, setProjectId] = useState<number>(task?.project ?? defaultProjectId ?? 0)
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'OPEN')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'MEDIUM')
@@ -103,20 +116,32 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           <label className="mb-1 block text-sm font-medium text-slate-600">عنوان المهمة</label>
           {/* متعدد الأسطر للعناوين الطويلة — Enter يحفظ، وShift+Enter لا يضيف سطراً
               لأن العنوان نص واحد يلتف تلقائياً */}
-          <textarea
-            autoFocus
-            value={title}
-            onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                e.currentTarget.form?.requestSubmit()
-              }
-            }}
-            rows={3}
-            placeholder="مثال: مراجعة مخططات التمديدات الكهربائية"
-            className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed outline-none focus:border-blue-400"
-          />
+          {titleEditable ? (
+            <textarea
+              ref={titleRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.currentTarget.form?.requestSubmit()
+                }
+              }}
+              rows={3}
+              placeholder="مثال: مراجعة مخططات التمديدات الكهربائية"
+              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed outline-none focus:border-blue-400"
+            />
+          ) : (
+            /* عرض للقراءة — النقر يحوّله لحقل كتابة بمؤشر في نهاية العنوان */
+            <button
+              type="button"
+              onClick={() => setTitleEditable(true)}
+              title="انقر لتعديل العنوان"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-start text-sm leading-relaxed text-slate-800 hover:border-blue-300 hover:bg-white"
+            >
+              {title}
+            </button>
+          )}
         </div>
 
         {/* إسناد المهمة لموظف واحد أو أكثر — للمدير فقط */}
