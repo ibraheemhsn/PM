@@ -93,6 +93,8 @@ export interface Task {
   has_unread_comments: boolean
   /** لم يطّلع المستخدم الحالي على المهمة بعد — تُميَّز بخلفية صفراء */
   is_unread: boolean
+  /** مرفقات مرتبطة بالمهمة — تظهر في تفاصيلها وفي قسم المرفقات معاً */
+  attachments: UpdateAttachment[]
   /** غير فارغ = المهمة في سلة المحذوفات */
   deleted_at: string | null
   created_at: string

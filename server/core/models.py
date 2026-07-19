@@ -381,6 +381,11 @@ class Attachment(models.Model):
         ProjectUpdate, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="attachments", verbose_name="التحديث",
     )
+    # مرفق مرتبط بمهمة (اختياري) — يظهر في تفاصيل المهمة وفي قسم المرفقات معاً
+    task = models.ForeignKey(
+        Task, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="attachments", verbose_name="المهمة",
+    )
     file_name = models.CharField("اسم الملف", max_length=255)
     # تصنيف اختياري — أساس الفلترة السريعة في أقسام المرفقات
     category = models.CharField(

@@ -51,7 +51,7 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
   const uploadForUpdate = async (updateId: number, file: File) => {
     setUploadingAttach(true)
     try {
-      await api.attachments.create(projectId, file, '', '', updateId)
+      await api.attachments.create(projectId, file, '', '', { updateId })
       invalidateAttachments()
     } catch {
       window.alert('تعذر رفع المرفق — يُسمح بالصور وملفات PDF والملفات النصية.')

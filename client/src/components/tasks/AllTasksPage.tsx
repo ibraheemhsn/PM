@@ -19,6 +19,7 @@ import { CalendarView } from './CalendarView'
 import { KanbanBoard } from './KanbanBoard'
 import { StatusIcon } from './StatusIcon'
 import { TaskCard } from './TaskCard'
+import { UpdateEditModal } from '../projects/UpdateEditModal'
 import { TaskCommentsModal } from './TaskCommentsModal'
 import { TaskFormModal } from './TaskFormModal'
 
@@ -82,6 +83,7 @@ export function AllTasksPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
   const [commentsTask, setCommentsTask] = useState<Task | null>(null)
+  const [editingUpdate, setEditingUpdate] = useState<ProjectUpdate | null>(null)
 
   const hasActiveFilters =
     filters.project !== 'all' ||
@@ -515,7 +517,11 @@ export function AllTasksPage() {
               }
             />
           ) : (
-            <UpdateFeedCard key={`update-${item.update.id}`} update={item.update} />
+            <UpdateFeedCard
+              key={`update-${item.update.id}`}
+              update={item.update}
+              onOpen={() => setEditingUpdate(item.update)}
+            />
           ),
         )}
       </div>
@@ -530,16 +536,25 @@ export function AllTasksPage() {
       {commentsTask && (
         <TaskCommentsModal task={commentsTask} onClose={() => setCommentsTask(null)} />
       )}
+      {editingUpdate && (
+        <UpdateEditModal
+          update={editingUpdate}
+          // الصلاحية للمدير أو كاتب التحديث (مفروضة على الخادم أيضاً)
+          canEdit={isManager || editingUpdate.author?.id === me?.id}
+          onClose={() => setEditingUpdate(null)}
+        />
+      )}
     </div>
   )
 }
 
-/** بطاقة تحديث مشروع داخل الخلاصة الموحدة (للعرض — التحرير من صفحة المشروع) */
-function UpdateFeedCard({ update }: { update: ProjectUpdate }) {
+/** بطاقة تحديث مشروع داخل الخلاصة الموحدة — النقر يفتح نافذة التعديل */
+function UpdateFeedCard({ update, onOpen }: { update: ProjectUpdate; onOpen: () => void }) {
   return (
     <div
+      onClick={onOpen}
       className={cn(
-        'flex items-start gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm',
+        'flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm transition hover:shadow',
         // غير مقروء — يصبح مقروءاً عند فتح صفحة المشروع
         update.is_unread ? 'bg-yellow-50' : 'bg-white',
       )}
@@ -562,6 +577,7 @@ function UpdateFeedCard({ update }: { update: ProjectUpdate }) {
           )}
           <Link
             to={`/projects/${update.project}`}
+            onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
           >
             <span

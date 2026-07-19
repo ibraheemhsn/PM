@@ -121,6 +121,22 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
+class EmbeddedAttachmentSerializer(serializers.ModelSerializer):
+    """تمثيل مختصر لمرفق معروض تحت تحديث مشروع أو مهمة."""
+
+    size = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attachment
+        fields = ["id", "file", "file_name", "thumbnail", "size"]
+
+    def get_size(self, obj) -> int:
+        try:
+            return obj.file.size if obj.file else 0
+        except OSError:
+            return 0
+
+
 class TaskSerializer(serializers.ModelSerializer):
     # أسماء الوسوم كقائمة نصية — الوسوم الجديدة تُنشأ تلقائياً عند الحفظ
     tags = serializers.ListField(
@@ -137,6 +153,8 @@ class TaskSerializer(serializers.ModelSerializer):
     is_unread = serializers.SerializerMethodField()
     # مهام المشاريع المؤرشفة تُستبعد من القوائم العامة في الواجهة
     project_archived = serializers.SerializerMethodField()
+    # مرفقات مرتبطة بالمهمة (تظهر في تفاصيلها وفي قسم المرفقات معاً)
+    attachments = EmbeddedAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Task
@@ -144,7 +162,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "id", "project", "project_title", "project_color", "project_archived",
             "title", "status", "priority", "due_date", "recurrence", "color", "tags",
             "assignees", "comments_count", "has_unread_comments", "is_unread",
-            "deleted_at", "created_at", "updated_at",
+            "attachments", "deleted_at", "created_at", "updated_at",
         ]
         # الحذف الناعم يُدار حصراً عبر destroy/restore/purge
         read_only_fields = ["deleted_at"]
@@ -206,23 +224,6 @@ class TaskCommentSerializer(serializers.ModelSerializer):
         prev_seen = self.context["prev_seen"]
         return prev_seen is None or obj.created_at > prev_seen
 
-
-class UpdateAttachmentSerializer(serializers.ModelSerializer):
-    """تمثيل مختصر لمرفق معروض تحت تحديث المشروع."""
-
-    size = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Attachment
-        fields = ["id", "file", "file_name", "thumbnail", "size"]
-
-    def get_size(self, obj) -> int:
-        try:
-            return obj.file.size if obj.file else 0
-        except OSError:
-            return 0
-
-
 class ProjectUpdateSerializer(serializers.ModelSerializer):
     author = UserBriefSerializer(read_only=True)
     # لعرض التحديث في الخلاصة الموحدة مع المهام
@@ -231,7 +232,7 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
     is_unread = serializers.SerializerMethodField()
     project_archived = serializers.SerializerMethodField()
     # مرفقات مرتبطة بهذا التحديث (تظهر في قسم المرفقات أيضاً)
-    attachments = UpdateAttachmentSerializer(many=True, read_only=True)
+    attachments = EmbeddedAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = ProjectUpdate
@@ -283,17 +284,20 @@ class AttachmentSerializer(serializers.ModelSerializer):
     project_color = serializers.CharField(source="project.color", read_only=True)
 
     def validate(self, attrs):
-        # مرفق التحديث يجب أن يتبع نفس مشروع التحديث
-        update = attrs.get("update")
         project = attrs.get("project") or (self.instance.project if self.instance else None)
+        # مرفق التحديث/المهمة يجب أن يتبع نفس مشروعهما
+        update = attrs.get("update")
         if update and project and update.project_id != project.id:
             raise serializers.ValidationError({"update": "التحديث لا يتبع هذا المشروع."})
+        task = attrs.get("task")
+        if task and project and task.project_id != project.id:
+            raise serializers.ValidationError({"task": "المهمة لا تتبع هذا المشروع."})
         return attrs
 
     class Meta:
         model = Attachment
         fields = [
-            "id", "project", "project_title", "project_color", "update", "file",
+            "id", "project", "project_title", "project_color", "update", "task", "file",
             "file_name", "thumbnail", "description", "category", "uploaded_by",
             "size", "created_at",
         ]

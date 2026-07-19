@@ -166,15 +166,16 @@ export const api = {
       file: File,
       description: string,
       category: string,
-      /** ربط المرفق بتحديث مشروع — يظهر تحته وفي قسم المرفقات معاً */
-      updateId?: number,
+      /** ربط اختياري بتحديث أو مهمة — يظهر تحتهما وفي قسم المرفقات معاً */
+      link?: { updateId?: number; taskId?: number },
     ) => {
       const data = new FormData()
       data.append('project', String(projectId))
       data.append('file', file)
       data.append('description', description)
       data.append('category', category)
-      if (updateId) data.append('update', String(updateId))
+      if (link?.updateId) data.append('update', String(link.updateId))
+      if (link?.taskId) data.append('task', String(link.taskId))
       return request<Attachment>('/attachments/', { method: 'POST', body: data })
     },
     update: (id: number, data: { description?: string; category?: string }) =>

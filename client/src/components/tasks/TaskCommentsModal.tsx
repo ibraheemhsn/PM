@@ -1,15 +1,19 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Send } from 'lucide-react'
+import { FileText, Paperclip, Send, X } from 'lucide-react'
 import {
   useEffect, useRef, useState, type ChangeEvent, type FormEvent,
   type KeyboardEvent, type ReactNode,
 } from 'react'
 import { useCommentMutations, useTaskComments } from '../../hooks/useTasks'
 import { useMentionableUsers } from '../../hooks/useUsers'
-import { cn, formatDate } from '../../lib/utils'
-import { displayName, type Task, type UserBrief } from '../../types'
+import { api } from '../../lib/api'
+import { cn, formatDate, formatFileSize, isImageFile } from '../../lib/utils'
+import { displayName, type Task, type UpdateAttachment, type UserBrief } from '../../types'
 import { Avatar } from '../ui/Avatar'
+import { Lightbox } from '../ui/Lightbox'
 import { Modal } from '../ui/Modal'
+
+const ATTACH_ACCEPT = 'image/*,.pdf,.txt,.md,.csv'
 
 /** تمييز المنشن (@username) بالأزرق داخل نص التعليق */
 function renderBody(text: string): ReactNode[] {
@@ -30,6 +34,51 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
   const { create } = useCommentMutations(task.id)
   const [body, setBody] = useState('')
   const queryClient = useQueryClient()
+
+  // مرفقات المهمة — حالة محلية للعرض الفوري بعد الرفع/الحذف
+  const [attachments, setAttachments] = useState<UpdateAttachment[]>(task.attachments)
+  const [uploading, setUploading] = useState(false)
+  const attachInputRef = useRef<HTMLInputElement>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
+
+  const refreshTasks = () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+
+  const uploadAttachment = async (file: File) => {
+    setUploading(true)
+    try {
+      const created = await api.attachments.create(task.project, file, '', '', {
+        taskId: task.id,
+      })
+      setAttachments((prev) => [
+        ...prev,
+        {
+          id: created.id,
+          file: created.file,
+          file_name: created.file_name,
+          thumbnail: created.thumbnail,
+          size: created.size,
+        },
+      ])
+      refreshTasks()
+      queryClient.invalidateQueries({ queryKey: ['attachments'] })
+    } catch {
+      window.alert('تعذر رفع المرفق — يُسمح بالصور وملفات PDF والملفات النصية.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeAttachment = async (att: UpdateAttachment) => {
+    if (!confirm(`حذف مرفق «${att.file_name}»؟`)) return
+    try {
+      await api.attachments.remove(att.id)
+      setAttachments((prev) => prev.filter((a) => a.id !== att.id))
+      refreshTasks()
+      queryClient.invalidateQueries({ queryKey: ['attachments'] })
+    } catch {
+      window.alert('تعذر حذف المرفق.')
+    }
+  }
 
   // إكمال المنشن: mentionQuery = ما كُتب بعد @ قبل المؤشر (null = مغلق)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -110,7 +159,64 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
 
   return (
     <Modal title="التعليقات" onClose={onClose}>
-      <p className="mb-4 truncate text-sm text-slate-500">المهمة: {task.title}</p>
+      <p className="mb-3 truncate text-sm text-slate-500">المهمة: {task.title}</p>
+
+      {/* مرفقات المهمة — عرض ورفع وحذف */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+        {attachments.map((att) => (
+          <span key={att.id} className="relative">
+            {isImageFile(att.file_name) ? (
+              <button type="button" onClick={() => setLightbox(att.file)} title={att.file_name}>
+                <img
+                  src={att.thumbnail ?? att.file}
+                  alt={att.file_name}
+                  loading="lazy"
+                  className="h-16 w-16 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200"
+                />
+              </button>
+            ) : (
+              <a
+                href={att.file}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600 ring-1 ring-slate-200 hover:text-blue-600"
+              >
+                <FileText size={14} />
+                <span dir="ltr" className="max-w-32 truncate">{att.file_name}</span>
+                <span className="text-slate-400">({formatFileSize(att.size)})</span>
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => removeAttachment(att)}
+              title="حذف المرفق"
+              className="absolute -end-1.5 -top-1.5 rounded-full bg-red-600 p-0.5 text-white shadow hover:bg-red-700"
+            >
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          onClick={() => attachInputRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-2.5 py-1.5 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+        >
+          <Paperclip size={13} />
+          {uploading ? 'جارٍ الرفع…' : 'إرفاق ملف'}
+        </button>
+        <input
+          ref={attachInputRef}
+          type="file"
+          accept={ATTACH_ACCEPT}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void uploadAttachment(file)
+          }}
+          className="hidden"
+        />
+      </div>
 
       <div className="max-h-72 space-y-3 overflow-y-auto">
         {isLoading && <p className="py-4 text-center text-sm text-slate-400">جارٍ التحميل…</p>}
@@ -204,6 +310,8 @@ export function TaskCommentsModal({ task, onClose }: { task: Task; onClose: () =
           إرسال
         </button>
       </form>
+
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </Modal>
   )
 }
