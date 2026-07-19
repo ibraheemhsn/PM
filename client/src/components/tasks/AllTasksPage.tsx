@@ -1,6 +1,6 @@
 import {
   ArrowDownWideNarrow, ArrowUpNarrowWide, CalendarDays, FilterX, LayoutGrid,
-  List, Plus, Search,
+  List, Plus, Search, SlidersHorizontal,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -84,6 +84,8 @@ export function AllTasksPage() {
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
   const [commentsTask, setCommentsTask] = useState<Task | null>(null)
   const [editingUpdate, setEditingUpdate] = useState<ProjectUpdate | null>(null)
+  // على الجوال: حقول الفرز والفلاتر مخفية خلف «فلتر متقدم» (ظاهرة دائماً على الحاسوب)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const hasActiveFilters =
     filters.project !== 'all' ||
@@ -306,28 +308,46 @@ export function AllTasksPage() {
             ))}
           </select>
 
-          {/* الترتيب الزمني */}
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as SortField)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          >
-            <option value="updated_at">تاريخ التحديث</option>
-            <option value="created_at">تاريخ الإنشاء</option>
-            <option value="due_date">تاريخ الاستحقاق</option>
-            <option value="priority">الأولوية</option>
-          </select>
+          {/* زر «فلتر متقدم» — على الجوال فقط، يكشف الفرز والفلاتر المخفية */}
           <button
-            onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            title={sortDirection === 'asc' ? 'تصاعدي (الأقدم أولاً)' : 'تنازلي (الأحدث أولاً)'}
-            className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:border-blue-400 hover:text-blue-600"
-          >
-            {sortDirection === 'asc' ? (
-              <ArrowUpNarrowWide size={17} />
-            ) : (
-              <ArrowDownWideNarrow size={17} />
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className={cn(
+              'flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm lg:hidden',
+              advancedOpen
+                ? 'border-blue-400 bg-blue-50 text-blue-700'
+                : 'border-slate-200 bg-white text-slate-600',
             )}
+          >
+            <SlidersHorizontal size={15} />
+            فلتر متقدم
           </button>
+
+          {/* الترتيب الزمني — مخفي على الجوال حتى «فلتر متقدم» */}
+          <div
+            className={cn('items-center gap-2', advancedOpen ? 'flex' : 'hidden', 'lg:flex')}
+          >
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value as SortField)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+            >
+              <option value="updated_at">تاريخ التحديث</option>
+              <option value="created_at">تاريخ الإنشاء</option>
+              <option value="due_date">تاريخ الاستحقاق</option>
+              <option value="priority">الأولوية</option>
+            </select>
+            <button
+              onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}
+              title={sortDirection === 'asc' ? 'تصاعدي (الأقدم أولاً)' : 'تنازلي (الأحدث أولاً)'}
+              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:border-blue-400 hover:text-blue-600"
+            >
+              {sortDirection === 'asc' ? (
+                <ArrowUpNarrowWide size={17} />
+              ) : (
+                <ArrowDownWideNarrow size={17} />
+              )}
+            </button>
+          </div>
 
           {hasActiveFilters && (
             <button
@@ -341,9 +361,16 @@ export function AllTasksPage() {
           )}
         </div>
 
-        {/* فلاتر المهام: الحالة (chips) + الأولوية + الموظف */}
+        {/* فلاتر المهام: الحالة (chips) + الأولوية + الموظف + الوسوم —
+            مخفية على الجوال حتى «فلتر متقدم»، ظاهرة دائماً على الحاسوب */}
         {(layout === 'board' || view !== 'updates') && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div
+            className={cn(
+              'mt-2.5 flex-wrap items-center gap-x-5 gap-y-2',
+              advancedOpen ? 'flex' : 'hidden',
+              'lg:flex',
+            )}
+          >
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-slate-400">الحالة:</span>
               <button

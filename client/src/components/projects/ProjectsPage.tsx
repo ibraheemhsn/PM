@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useProjects } from '../../hooks/useProjects'
+import { arabicToLatinKeys, latinToArabicKeys } from '../../lib/utils'
 import { orderProjects } from '../../types'
 import { ProjectFormModal } from './ProjectFormModal'
 
@@ -16,9 +17,12 @@ export function ProjectsPage() {
   const [search, setSearch] = useState('')
 
   const isManager = !!me?.is_manager
+  // بحث ذكي: يطابق العبارة كما كُتبت + تحويلها بين تخطيطي اللوحة العربي/اللاتيني
+  // (كتابة «fdzm» تطابق «بيئة» دون تبديل لغة الكيبورد)
   const query = search.trim().toLowerCase()
-  const ordered = orderProjects(projects, me?.project_order ?? []).filter((p) =>
-    p.title.toLowerCase().includes(query),
+  const variants = query ? [...new Set([query, latinToArabicKeys(query), arabicToLatinKeys(query)])] : []
+  const ordered = orderProjects(projects, me?.project_order ?? []).filter(
+    (p) => !query || variants.some((v) => p.title.toLowerCase().includes(v)),
   )
 
   return (

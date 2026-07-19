@@ -100,9 +100,13 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
 
       {/* المشاريع: المدير يرى الكل ويدير؛ الموظف يرى مشاريعه (التي له فيها مهام) */}
       <div className="mt-4 flex items-center justify-between px-4">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+        {/* العنوان رابط لصفحة «كل المشاريع» */}
+        <NavLink
+          to="/projects"
+          className="text-xs font-bold uppercase tracking-wide text-slate-500 hover:text-blue-400"
+        >
           {isManager ? 'المشاريع' : 'مشاريعي'}
-        </h2>
+        </NavLink>
         {isManager && (
           <button
             onClick={() => setEditing('new')}

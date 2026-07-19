@@ -1,18 +1,24 @@
-import { X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { FileText, Paperclip, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useProjects } from '../../hooks/useProjects'
 import { useTags, useTaskMutations } from '../../hooks/useTasks'
 import { useUsers } from '../../hooks/useUsers'
-import { cn } from '../../lib/utils'
+import { api } from '../../lib/api'
+import { cn, formatFileSize, isImageFile } from '../../lib/utils'
 import {
   displayName, PRIORITY_COLORS, PRIORITY_LABELS, RECURRENCE_LABELS,
   STATUS_LABELS, TASK_PRIORITIES, TASK_RECURRENCES, TASK_STATUSES,
   type Task, type TaskPriority, type TaskRecurrence, type TaskStatus,
+  type UpdateAttachment,
 } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { ColorPicker } from '../ui/ColorPicker'
+import { Lightbox } from '../ui/Lightbox'
 import { Modal } from '../ui/Modal'
+
+const ATTACH_ACCEPT = 'image/*,.pdf,.txt,.md,.csv'
 
 interface TaskFormModalProps {
   /** null → إنشاء مهمة جديدة */
@@ -58,6 +64,61 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
 
   const saving = create.isPending || update.isPending
 
+  const queryClient = useQueryClient()
+  // مرفقات المهمة القائمة (تُرفع فوراً)، وملفات معلّقة للمهمة الجديدة (تُرفع بعد الحفظ)
+  const [attachments, setAttachments] = useState<UpdateAttachment[]>(task?.attachments ?? [])
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [uploadingAttach, setUploadingAttach] = useState(false)
+  const attachInputRef = useRef<HTMLInputElement>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
+
+  const invalidateAttachments = () => {
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.invalidateQueries({ queryKey: ['attachments'] })
+  }
+
+  /** رفع ملف إلى مهمة موجودة (بمعرّفها ومشروعها) */
+  const uploadToTask = async (taskId: number, projId: number, file: File) => {
+    const created = await api.attachments.create(projId, file, '', '', { taskId })
+    return {
+      id: created.id,
+      file: created.file,
+      file_name: created.file_name,
+      thumbnail: created.thumbnail,
+      size: created.size,
+    } satisfies UpdateAttachment
+  }
+
+  const handlePickFile = async (file: File) => {
+    if (task) {
+      // مهمة قائمة: ارفع فوراً
+      setUploadingAttach(true)
+      try {
+        const att = await uploadToTask(task.id, task.project, file)
+        setAttachments((prev) => [...prev, att])
+        invalidateAttachments()
+      } catch {
+        window.alert('تعذر رفع المرفق — يُسمح بالصور وملفات PDF والملفات النصية.')
+      } finally {
+        setUploadingAttach(false)
+      }
+    } else {
+      // مهمة جديدة: علّق الملف ليُرفع بعد الحفظ
+      setPendingFiles((prev) => [...prev, file])
+    }
+  }
+
+  const removeAttachment = async (att: UpdateAttachment) => {
+    if (!confirm(`حذف مرفق «${att.file_name}»؟`)) return
+    try {
+      await api.attachments.remove(att.id)
+      setAttachments((prev) => prev.filter((a) => a.id !== att.id))
+      invalidateAttachments()
+    } catch {
+      window.alert('تعذر حذف المرفق.')
+    }
+  }
+
   const addTag = (raw: string) => {
     const name = raw.trim().replace(/^#/, '')
     if (name && !tags.includes(name)) setTags([...tags, name])
@@ -102,7 +163,25 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
     if (task) {
       update.mutate({ id: task.id, data }, { onSuccess: onClose })
     } else {
-      create.mutate(data, { onSuccess: onClose })
+      // بعد إنشاء المهمة: ارفع الملفات المعلّقة (إن وُجدت) ثم أغلق النافذة
+      create.mutate(data, {
+        onSuccess: async (created) => {
+          if (pendingFiles.length > 0) {
+            setUploadingAttach(true)
+            try {
+              for (const file of pendingFiles) {
+                await uploadToTask(created.id, created.project, file)
+              }
+              invalidateAttachments()
+            } catch {
+              window.alert('أُنشئت المهمة، لكن تعذّر رفع بعض المرفقات.')
+            } finally {
+              setUploadingAttach(false)
+            }
+          }
+          onClose()
+        },
+      })
     }
   }
 
@@ -309,6 +388,95 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           </div>
         </div>
 
+        {/* المرفقات — تعمل عند الإنشاء (تُرفع بعد الحفظ) وعند التعديل (تُرفع فوراً) */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">المرفقات</label>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* المرفقات المحفوظة (مهمة قائمة) */}
+            {attachments.map((att) => (
+              <span key={att.id} className="relative">
+                {isImageFile(att.file_name) ? (
+                  <button type="button" onClick={() => setLightbox(att.file)} title={att.file_name}>
+                    <img
+                      src={att.thumbnail ?? att.file}
+                      alt={att.file_name}
+                      loading="lazy"
+                      className="h-16 w-16 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200"
+                    />
+                  </button>
+                ) : (
+                  <a
+                    href={att.file}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600 ring-1 ring-slate-200 hover:text-blue-600"
+                  >
+                    <FileText size={14} />
+                    <span dir="ltr" className="max-w-32 truncate">{att.file_name}</span>
+                    <span className="text-slate-400">({formatFileSize(att.size)})</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(att)}
+                  title="حذف المرفق"
+                  className="absolute -end-1.5 -top-1.5 rounded-full bg-red-600 p-0.5 text-white shadow hover:bg-red-700"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+
+            {/* الملفات المعلّقة للمهمة الجديدة — تُرفع بعد الحفظ */}
+            {pendingFiles.map((file, index) => (
+              <span
+                key={`pending-${index}`}
+                className="relative flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1.5 text-xs text-blue-700 ring-1 ring-blue-200"
+              >
+                <Paperclip size={13} />
+                <span dir="ltr" className="max-w-32 truncate">{file.name}</span>
+                <span className="text-blue-400">({formatFileSize(file.size)})</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+                  }
+                  title="إزالة"
+                  className="rounded-full p-0.5 hover:bg-blue-100"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => attachInputRef.current?.click()}
+              disabled={uploadingAttach}
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-2.5 py-1.5 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+            >
+              <Paperclip size={13} />
+              {uploadingAttach ? 'جارٍ الرفع…' : 'إرفاق ملف'}
+            </button>
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept={ATTACH_ACCEPT}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) void handlePickFile(file)
+              }}
+              className="hidden"
+            />
+          </div>
+          {!task && pendingFiles.length > 0 && (
+            <p className="mt-1 text-[11px] text-slate-400">
+              تُرفع المرفقات تلقائياً بعد حفظ المهمة.
+            </p>
+          )}
+        </div>
+
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
@@ -319,10 +487,10 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           </button>
           <button
             type="submit"
-            disabled={!title.trim() || !projectId || saving}
+            disabled={!title.trim() || !projectId || saving || uploadingAttach}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {saving
+            {saving || uploadingAttach
               ? 'جارٍ الحفظ…'
               : task
                 ? 'حفظ التعديلات'
@@ -332,6 +500,7 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           </button>
         </div>
       </form>
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </Modal>
   )
 }
