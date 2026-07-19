@@ -233,8 +233,13 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           )}
         </div>
 
-        {/* سطر ملخّص: أيقونات البارامترات غير الافتراضية + زر خيارات متقدمة */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500">
+        {/* سطر ملخّص: أيقونات البارامترات غير الافتراضية — النقر على السطر
+            كله يفتح/يخفي الخيارات المتقدمة (مؤشر يد + خلفية عند التحويم) */}
+        <div
+          onClick={() => setAdvancedOpen((v) => !v)}
+          title={advancedOpen ? 'إخفاء الخيارات المتقدمة' : 'إظهار الخيارات المتقدمة'}
+          className="-mx-2 flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-100"
+        >
           {/* الحالة */}
           <span className="flex items-center gap-1" title="الحالة">
             <StatusIcon status={status} size={14} />
@@ -307,14 +312,11 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="ms-auto flex items-center gap-1 font-medium text-blue-600 hover:text-blue-700"
-          >
+          {/* نص إرشادي — النقر يُعالَج على مستوى السطر كله */}
+          <span className="ms-auto flex items-center gap-1 font-medium text-blue-600">
             <SlidersHorizontal size={13} />
             {advancedOpen ? 'إخفاء الخيارات' : 'خيارات متقدمة'}
-          </button>
+          </span>
         </div>
 
         {/* الحقول الكاملة — تظهر عند «خيارات متقدمة» */}
