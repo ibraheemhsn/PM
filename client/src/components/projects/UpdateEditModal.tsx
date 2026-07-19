@@ -5,16 +5,26 @@ import { useProjectUpdateMutations } from '../../hooks/useProjects'
 import { api } from '../../lib/api'
 import { cn, formatFileSize, isImageFile } from '../../lib/utils'
 import type { ProjectUpdate, UpdateAttachment } from '../../types'
+import { enterClass, useModalPullNav } from '../tasks/modalPullNav'
 import { Lightbox } from '../ui/Lightbox'
 import { Modal } from '../ui/Modal'
 
 const ATTACH_ACCEPT = 'image/*,.pdf,.txt,.md,.csv'
 
 /** نافذة تعديل تحديث مشروع من الخلاصة الموحدة: تحرير النص + إدارة المرفقات
- *  + الحذف. الصلاحية للمدير أو كاتب التحديث (مفروضة على الخادم أيضاً). */
+ *  + الحذف. الصلاحية للمدير أو كاتب التحديث (مفروضة على الخادم أيضاً).
+ *  تدعم التنقل بالسحب العمودي بين عناصر الخلاصة (الجوال). */
 export function UpdateEditModal({
-  update, canEdit, onClose,
-}: { update: ProjectUpdate; canEdit: boolean; onClose: () => void }) {
+  update, canEdit, onClose, onPrev, onNext, enterDir,
+}: {
+  update: ProjectUpdate
+  canEdit: boolean
+  onClose: () => void
+  onPrev?: () => void
+  onNext?: () => void
+  enterDir?: 'prev' | 'next'
+}) {
+  const { bodyRef, hints } = useModalPullNav({ onPrev, onNext })
   const queryClient = useQueryClient()
   const { update: updateMut, remove } = useProjectUpdateMutations()
 
@@ -78,7 +88,9 @@ export function UpdateEditModal({
   }
 
   return (
-    <Modal title={canEdit ? 'تعديل التحديث' : 'التحديث'} onClose={onClose}>
+    <Modal title={canEdit ? 'تعديل التحديث' : 'التحديث'} onClose={onClose} bodyRef={bodyRef}>
+      {hints}
+      <div className={enterClass(enterDir)}>
       {editingBody && canEdit ? (
         <textarea
           autoFocus
@@ -199,6 +211,7 @@ export function UpdateEditModal({
           </div>
         </div>
       )}
+      </div>
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </Modal>

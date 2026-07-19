@@ -41,12 +41,15 @@ export function useEdgePullNavigate(options: {
     const atTop = () => el.scrollTop <= 0
     const atBottom = () => el.scrollHeight - el.scrollTop - el.clientHeight <= 1
 
+    // هل يوجد جار في اتجاه السحب الحالي؟ (لتشغيل الاهتزاز/التبديل فقط عند وجوده)
+    const navigable = () =>
+      (dir === 1 && latest.current.hasPrev) || (dir === -1 && latest.current.hasNext)
+
     const setPullValue = (v: number) => {
       pullRef.current = v
       setPull(v)
-      // تأثير لمسي متوسط لحظة بلوغ العتبة — عند ظهور «أفلت للانتقال»
-      // الأخضر، مرة واحدة فقط لكل سحبة
-      const past = Math.abs(v) >= threshold
+      // تأثير لمسي متوسط لحظة بلوغ العتبة — فقط عند وجود جار (تبديل فعلي)
+      const past = Math.abs(v) >= threshold && navigable()
       if (past && !passedThreshold) haptics.medium()
       passedThreshold = past
     }
@@ -62,19 +65,22 @@ export function useEdgePullNavigate(options: {
     const onMove = (e: TouchEvent) => {
       if (!active) return
       const dy = e.touches[0].clientY - startY
-      const { hasPrev, hasNext } = latest.current
 
-      // سحب لأسفل عند القمة → المشروع السابق
-      if (dy > 0 && atTop() && hasPrev) {
+      // السحب يعمل عند الحافة حتى بلا جار — كي يظهر تنبيه «لا يوجد المزيد».
+      // مقاومة أكبر (تخميد أقل) حين لا جار للدلالة على أنه طريق مسدود
+      const damp = () => (navigable() ? 0.45 : 0.25)
+      const cap = () => (navigable() ? 150 : 60)
+
+      // سحب لأسفل عند القمة → السابق (أو «لا مزيد في الأعلى»)
+      if (dy > 0 && atTop()) {
         dir = 1
-        // تخميد: المقاومة تزداد مع المسافة (شعور مطاطي طبيعي)
-        setPullValue(Math.min(dy * 0.45, 150))
+        setPullValue(Math.min(dy * damp(), cap()))
         e.preventDefault() // امنع اهتزاز المتصفح المطاطي أثناء تولّينا الإيماءة
       }
-      // سحب لأعلى عند القاع → المشروع التالي
-      else if (dy < 0 && atBottom() && hasNext) {
+      // سحب لأعلى عند القاع → التالي (أو «لا مزيد في الأسفل»)
+      else if (dy < 0 && atBottom()) {
         dir = -1
-        setPullValue(Math.max(dy * 0.45, -150))
+        setPullValue(Math.max(dy * damp(), -cap()))
         e.preventDefault()
       }
       // عاد ضمن نطاق التمرير الطبيعي — أفلت الإيماءة
@@ -86,9 +92,12 @@ export function useEdgePullNavigate(options: {
 
     const onEnd = () => {
       if (active) {
-        // تجاوز العتبة؟ شغّل التبديل
-        if (dir === 1 && pullRef.current >= threshold) latest.current.onPrev()
-        else if (dir === -1 && pullRef.current <= -threshold) latest.current.onNext()
+        // التبديل فقط عند تجاوز العتبة ووجود جار في الاتجاه
+        if (dir === 1 && pullRef.current >= threshold && latest.current.hasPrev) {
+          latest.current.onPrev()
+        } else if (dir === -1 && pullRef.current <= -threshold && latest.current.hasNext) {
+          latest.current.onNext()
+        }
       }
       active = false
       dir = 0

@@ -85,6 +85,8 @@ export function AllTasksPage() {
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
   const [commentsTask, setCommentsTask] = useState<Task | null>(null)
   const [editingUpdate, setEditingUpdate] = useState<ProjectUpdate | null>(null)
+  // اتجاه آخر تنقل بالسحب بين عناصر الخلاصة — لأنيميشن دخول النافذة
+  const [navDir, setNavDir] = useState<'prev' | 'next' | undefined>(undefined)
   // على الجوال: حقول الفرز والفلاتر مخفية خلف «فلتر متقدم» (ظاهرة دائماً على الحاسوب)
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
@@ -196,6 +198,42 @@ export function AllTasksPage() {
     if (!confirm(`نقل مهمة «${task.title}» إلى المحذوفات؟ يمكنك استعادتها أو حذفها نهائياً من هناك.`))
       return
     taskMutations.remove.mutate(task.id)
+  }
+
+  // ===== التنقل بالسحب بين عناصر الخلاصة (مهام + تحديثات) في النوافذ =====
+  // قائمة التنقل: الخلاصة في وضع القائمة، والمهام فقط في اللوحة/التقويم
+  const navItems: FeedItem[] =
+    layout === 'list' ? feed : boardTasks.map((task) => ({ kind: 'task', task }))
+
+  const feedKey = (item: FeedItem) =>
+    item.kind === 'task' ? `task-${item.task.id}` : `update-${item.update.id}`
+
+  /** يفتح النافذة المناسبة للعنصر (مهمة: تعديل للمدير/تعليقات للموظف — تحديث: تعديله) */
+  const openFeedItem = (item: FeedItem, dir?: 'prev' | 'next') => {
+    setNavDir(dir)
+    setEditingTask(null)
+    setCommentsTask(null)
+    setEditingUpdate(null)
+    if (item.kind === 'task') {
+      if (isManager) setEditingTask(item.task)
+      else setCommentsTask(item.task)
+    } else {
+      setEditingUpdate(item.update)
+    }
+  }
+
+  /** يعيد مُنقِّلاً للجار في الاتجاه (dir=-1 سابق، +1 تالٍ) أو undefined عند الحافة */
+  const navSibling = (currentKey: string, dir: -1 | 1): (() => void) | undefined => {
+    const index = navItems.findIndex((item) => feedKey(item) === currentKey)
+    const sibling = index >= 0 ? navItems[index + dir] : undefined
+    return sibling ? () => openFeedItem(sibling, dir === -1 ? 'prev' : 'next') : undefined
+  }
+
+  const closeModals = () => {
+    setEditingTask(null)
+    setCommentsTask(null)
+    setEditingUpdate(null)
+    setNavDir(undefined)
   }
 
   if (isLoading) return <p className="p-10 text-center text-slate-400">جارٍ التحميل…</p>
@@ -564,19 +602,35 @@ export function AllTasksPage() {
 
       {editingTask && (
         <TaskFormModal
+          // key يعيد تهيئة النافذة بحقول العنصر الجديد عند التنقل بالسحب
+          key={editingTask === 'new' ? 'new' : `task-${editingTask.id}`}
           task={editingTask === 'new' ? null : editingTask}
-          onClose={() => setEditingTask(null)}
+          onClose={closeModals}
+          onPrev={editingTask === 'new' ? undefined : navSibling(`task-${editingTask.id}`, -1)}
+          onNext={editingTask === 'new' ? undefined : navSibling(`task-${editingTask.id}`, 1)}
+          enterDir={editingTask === 'new' ? undefined : navDir}
         />
       )}
       {commentsTask && (
-        <TaskCommentsModal task={commentsTask} onClose={() => setCommentsTask(null)} />
+        <TaskCommentsModal
+          key={`task-${commentsTask.id}`}
+          task={commentsTask}
+          onClose={closeModals}
+          onPrev={navSibling(`task-${commentsTask.id}`, -1)}
+          onNext={navSibling(`task-${commentsTask.id}`, 1)}
+          enterDir={navDir}
+        />
       )}
       {editingUpdate && (
         <UpdateEditModal
+          key={`update-${editingUpdate.id}`}
           update={editingUpdate}
           // الصلاحية للمدير أو كاتب التحديث (مفروضة على الخادم أيضاً)
           canEdit={isManager || editingUpdate.author?.id === me?.id}
-          onClose={() => setEditingUpdate(null)}
+          onClose={closeModals}
+          onPrev={navSibling(`update-${editingUpdate.id}`, -1)}
+          onNext={navSibling(`update-${editingUpdate.id}`, 1)}
+          enterDir={navDir}
         />
       )}
     </div>

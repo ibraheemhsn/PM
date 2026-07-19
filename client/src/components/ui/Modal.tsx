@@ -1,17 +1,19 @@
 import { X } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 
 interface ModalProps {
   title: string
   onClose: () => void
   children: ReactNode
+  /** مرجع لحاوية التمرير الداخلية — للسحب العمودي (التنقل بين العناصر) */
+  bodyRef?: Ref<HTMLDivElement>
 }
 
 /** نافذة منبثقة عامة — تُغلق بزر Esc أو بالنقر خارجها.
  *  تُعرض عبر Portal إلى body كي لا تنحصر داخل أي عنصر أب فيه transform
  *  (كالشريط الجانبي المنزلق) فتبقى متمركزة نسبةً للشاشة كاملة. */
-export function Modal({ title, onClose, children }: ModalProps) {
+export function Modal({ title, onClose, children, bodyRef }: ModalProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -42,7 +44,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
             <X size={18} />
           </button>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        <div ref={bodyRef} className="overflow-y-auto p-5">{children}</div>
       </div>
     </div>,
     document.body,

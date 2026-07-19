@@ -19,6 +19,7 @@ import { Avatar } from '../ui/Avatar'
 import { ColorPicker } from '../ui/ColorPicker'
 import { Lightbox } from '../ui/Lightbox'
 import { Modal } from '../ui/Modal'
+import { enterClass, useModalPullNav } from './modalPullNav'
 import { StatusIcon } from './StatusIcon'
 import { TaskComments } from './TaskComments'
 
@@ -30,9 +31,16 @@ interface TaskFormModalProps {
   /** المشروع الافتراضي عند الإنشاء من صفحة مشروع */
   defaultProjectId?: number
   onClose: () => void
+  /** التنقل بين المهام بالسحب العمودي (الجوال) — أعلى الصفحة+سحب لأسفل = السابقة */
+  onPrev?: () => void
+  onNext?: () => void
+  /** اتجاه دخول النافذة بعد التنقل — لأنيميشن الانزلاق */
+  enterDir?: 'prev' | 'next'
 }
 
-export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModalProps) {
+export function TaskFormModal({
+  task, defaultProjectId, onClose, onPrev, onNext, enterDir,
+}: TaskFormModalProps) {
   const { data: me } = useMe()
   // الموظف يقترح مهمة: الحالة «مقترحة» إجبارياً وبلا إسناد (تُسند إليه تلقائياً)
   const isManager = !!me?.is_manager
@@ -67,6 +75,9 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
   const [assignees, setAssignees] = useState<number[]>(task?.assignees.map((a) => a.id) ?? [])
   // نافذة مركّزة: عند التعديل تُطوى الحقول خلف «خيارات متقدمة»؛ عند الإنشاء مفتوحة
   const [advancedOpen, setAdvancedOpen] = useState(!task)
+
+  // السحب العمودي داخل النافذة للتنقل بين المهام (الجوال) — كصفحة المشاريع
+  const { bodyRef, hints } = useModalPullNav({ onPrev, onNext })
 
   // مشتقات لسطر الملخّص
   const selectedProject = projects.find((p) => p.id === projectId)
@@ -199,7 +210,12 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
     <Modal
       title={task ? 'تعديل المهمة' : isManager ? 'مهمة جديدة' : 'اقتراح مهمة'}
       onClose={onClose}
+      bodyRef={bodyRef}
     >
+      {/* مؤشرا السحب العمودي للتنقل بين المهام (الجوال) */}
+      {hints}
+      {/* غلاف يحمل أنيميشن دخول الانزلاق عند التنقل بين المهام (~نصف ثانية) */}
+      <div className={enterClass(enterDir)}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">عنوان المهمة</label>
@@ -352,7 +368,7 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
         </div>
         )}
 
-        <div className={cn('grid gap-3', isManager && 'grid-cols-2')}>
+        <div className={cn('grid gap-3', isManager && 'sm:grid-cols-2')}>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">المشروع</label>
             <select
@@ -388,7 +404,8 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* عمود واحد على الجوال (كي لا تتداخل الأولوية والتاريخ)، عمودان على الأوسع */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">الأولوية</label>
             <div className="flex gap-1.5">
@@ -609,6 +626,7 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           <TaskComments task={task} />
         </div>
       )}
+      </div>
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </Modal>

@@ -48,6 +48,8 @@ export function ProjectPage() {
 
   const [editingProject, setEditingProject] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
+  // اتجاه آخر تنقل بالسحب بين المهام — لأنيميشن دخول نافذة المهمة
+  const [taskNavDir, setTaskNavDir] = useState<'prev' | 'next' | undefined>(undefined)
   const [commentsTask, setCommentsTask] = useState<Task | null>(null)
 
   const project =
@@ -125,24 +127,39 @@ export function ProjectPage() {
     taskMutations.remove.mutate(task.id)
   }
 
+  // التنقل بين مهام المشروع في نافذة التعديل بالسحب — يعيد دالة أو undefined
+  // إن لم يوجد جار في الاتجاه (dir = -1 السابقة، +1 التالية)
+  const editTaskSibling = (dir: -1 | 1): (() => void) | undefined => {
+    if (editingTask === null || editingTask === 'new') return undefined
+    const index = projectTasks.findIndex((t) => t.id === editingTask.id)
+    const sibling = index >= 0 ? projectTasks[index + dir] : undefined
+    if (!sibling) return undefined
+    return () => {
+      setTaskNavDir(dir === -1 ? 'prev' : 'next')
+      setEditingTask(sibling)
+    }
+  }
+
   return (
     <>
       {/* مؤشرا السحب: هدف السابق من الأعلى، والتالي من الأسفل — يظهران أثناء
           السحب فقط وتزداد شفافيتهما مع التقدّم نحو العتبة */}
-      {pulling && pull > 0 && prevProject && (
+      {pulling && pull > 0 && (
         <PullHint
           direction="prev"
-          label={prevProject.title}
+          label={prevProject?.title}
           progress={progress}
           ready={pull >= threshold}
+          blocked={!prevProject}
         />
       )}
-      {pulling && pull < 0 && nextProject && (
+      {pulling && pull < 0 && (
         <PullHint
           direction="next"
-          label={nextProject.title}
+          label={nextProject?.title}
           progress={progress}
           ready={-pull >= threshold}
+          blocked={!nextProject}
         />
       )}
 
@@ -332,9 +349,18 @@ export function ProjectPage() {
       )}
       {editingTask && (
         <TaskFormModal
+          // key يعيد تهيئة النافذة بحقول المهمة الجديدة عند التنقل بالسحب
+          key={editingTask === 'new' ? 'new' : editingTask.id}
           task={editingTask === 'new' ? null : editingTask}
           defaultProjectId={project.id}
-          onClose={() => setEditingTask(null)}
+          onClose={() => {
+            setEditingTask(null)
+            setTaskNavDir(undefined)
+          }}
+          // التنقل العمودي بالسحب بين مهام المشروع (كصفحة المشاريع)
+          onPrev={editTaskSibling(-1)}
+          onNext={editTaskSibling(1)}
+          enterDir={taskNavDir}
         />
       )}
       {commentsTask && (
@@ -348,8 +374,14 @@ export function ProjectPage() {
 /** مؤشر السحب: شريحة عائمة أعلى/أسفل الشاشة تعرض المشروع الهدف وتزداد
  *  وضوحاً مع تقدّم السحب — وتتحول للأخضر عند بلوغ العتبة (جاهز للإفلات). */
 function PullHint({
-  direction, label, progress, ready,
-}: { direction: 'prev' | 'next'; label: string; progress: number; ready: boolean }) {
+  direction, label, progress, ready, blocked,
+}: {
+  direction: 'prev' | 'next'
+  label?: string
+  progress: number
+  ready: boolean
+  blocked?: boolean
+}) {
   return (
     <div
       className={cn(
@@ -363,14 +395,22 @@ function PullHint({
       <span
         className={cn(
           'flex max-w-[90%] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-colors',
-          ready ? 'bg-emerald-600' : 'bg-slate-800/90',
+          blocked ? 'bg-slate-500/90' : ready ? 'bg-emerald-600' : 'bg-slate-800/90',
         )}
       >
         {direction === 'prev' ? <ChevronsDown size={14} /> : <ChevronsUp size={14} />}
-        <span className="truncate">
-          {ready ? 'أفلت للانتقال' : direction === 'prev' ? 'المشروع السابق' : 'المشروع التالي'}
-        </span>
-        <span className="truncate text-white/70">— {label}</span>
+        {blocked ? (
+          <span className="truncate">
+            {direction === 'prev' ? 'لا يوجد المزيد في الأعلى' : 'لا يوجد المزيد في الأسفل'}
+          </span>
+        ) : (
+          <>
+            <span className="truncate">
+              {ready ? 'أفلت للانتقال' : direction === 'prev' ? 'المشروع السابق' : 'المشروع التالي'}
+            </span>
+            {label && <span className="truncate text-white/70">— {label}</span>}
+          </>
+        )}
       </span>
     </div>
   )

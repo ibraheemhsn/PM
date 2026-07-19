@@ -30,6 +30,22 @@
   animation: project-enter-from-bottom 0.3s ease-out;
 }
 
+/* انتقال أوضح (~نصف ثانية، إزاحة أكبر) للتنقل بين المهام داخل النافذة */
+@keyframes task-slide-down {
+  from { opacity: 0; transform: translateY(-42px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes task-slide-up {
+  from { opacity: 0; transform: translateY(42px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.task-enter-prev {
+  animation: task-slide-down 0.45s ease-out;
+}
+.task-enter-next {
+  animation: task-slide-up 0.45s ease-out;
+}
+
 /* ===== تنسيقات المحتوى الغني (مشتركة بين المحرر ووضع القراءة) =====
    الحشوة والارتفاع الأدنى يضيفهما المحرر وحده في RichTextEditor.tsx */
 .rich-text {

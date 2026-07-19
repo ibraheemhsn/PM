@@ -1,13 +1,40 @@
-import { Menu, Search } from 'lucide-react'
-import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Link, Outlet, useLocation, useMatch } from 'react-router-dom'
+import {
+  Archive, ArrowDownUp, History, Menu, Paperclip, Trash2, Users,
+} from 'lucide-react'
+import {
+  useEffect, useRef, useState, type ReactNode, type RefObject,
+} from 'react'
+import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { enablePush, registerServiceWorker } from '../../lib/pwa'
 import { cn } from '../../lib/utils'
+import { ProjectOrderModal } from '../projects/ProjectOrderModal'
 import { CommandPalette } from '../search/CommandPalette'
 import { TaskFormModal } from '../tasks/TaskFormModal'
+import { Avatar } from '../ui/Avatar'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
+
+/** رابط داخل قائمة المستخدم المنسدلة — بنمط الشريط الجانبي الداكن */
+function UserMenuLink({
+  to, icon, onClick, children,
+}: { to: string; icon: ReactNode; onClick: () => void; children: ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      onClick={onClick}
+      className={({ isActive }) =>
+        cn(
+          'flex items-center gap-3 px-5 py-3 text-sm',
+          isActive ? 'bg-slate-800 text-white' : 'text-slate-200 hover:bg-slate-800',
+        )
+      }
+    >
+      {icon}
+      {children}
+    </NavLink>
+  )
+}
 
 /** سياق يمرَّر للصفحات عبر Outlet — مرجع حاوية التمرير الرئيسية،
  *  ودالة لإخفاء الشريط الجانبي على الحاسوب (تُستخدم في عرض الكانبان/التقويم). */
@@ -21,8 +48,14 @@ export interface MainScrollContext {
 export function AppLayout() {
   const mainRef = useRef<HTMLElement>(null)
   const { data: me } = useMe()
+  const isManager = !!me?.is_manager
   // الصفحة الرئيسية للمدير لوحة الإحصائيات، وللموظف قائمة مهامه
-  const homePath = me?.is_manager ? '/dashboard' : '/tasks'
+  const homePath = isManager ? '/dashboard' : '/tasks'
+
+  // قائمة المستخدم المنسدلة (الجوال) من صورة المستخدم أعلى اليسار
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [orderingOpen, setOrderingOpen] = useState(false)
+  const closeUserMenu = () => setUserMenuOpen(false)
 
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
@@ -31,7 +64,10 @@ export function AppLayout() {
   // إخفاء الشريط الجانبي على الحاسوب (عرض الكانبان/التقويم لمساحة أوسع)
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
-  useEffect(() => setSidebarOpen(false), [location.pathname])
+  useEffect(() => {
+    setSidebarOpen(false)
+    setUserMenuOpen(false)
+  }, [location.pathname])
 
   // الشريط العلوي على الجوال: يختفي عند النزول في الصفحة ويظهر عند الصعود
   // — والشريط السفلي العائم يصبح شبه شفاف أثناء التمرير (بأي اتجاه)
@@ -165,15 +201,62 @@ export function AppLayout() {
         <Link to={homePath} className="font-bold hover:text-blue-300">
           شركة الفخار
         </Link>
-        {/* أقصى اليسار في RTL */}
-        <button
-          onClick={() => setPaletteOpen(true)}
-          aria-label="بحث"
-          className="ms-auto rounded-lg p-1 hover:bg-slate-800"
-        >
-          <Search size={20} />
-        </button>
+        {/* أقصى اليسار في RTL: صورة المستخدم — تفتح قائمة الأدوات */}
+        {me && (
+          <button
+            onClick={() => setUserMenuOpen((v) => !v)}
+            aria-label="قائمة المستخدم"
+            className={cn('ms-auto rounded-full', userMenuOpen && 'ring-2 ring-blue-400')}
+          >
+            <Avatar user={me} size={30} />
+          </button>
+        )}
       </header>
+
+      {/* قائمة المستخدم المنسدلة — بعرض الشاشة وبخلفية الشريط الجانبي الداكنة */}
+      {userMenuOpen && (
+        <>
+          <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setUserMenuOpen(false)} />
+          <div
+            className={cn(
+              'fixed inset-x-0 top-[52px] z-50 border-b border-slate-800 bg-slate-900 py-2 text-slate-100 shadow-xl transition-transform duration-200 lg:hidden',
+              topBarHidden && '-translate-y-[200%]',
+            )}
+          >
+            {isManager && (
+              <UserMenuLink to="/employees" icon={<Users size={17} />} onClick={closeUserMenu}>
+                الموظفون
+              </UserMenuLink>
+            )}
+            <UserMenuLink to="/activity" icon={<History size={17} />} onClick={closeUserMenu}>
+              سجل النشاطات
+            </UserMenuLink>
+            <button
+              onClick={() => {
+                setUserMenuOpen(false)
+                setOrderingOpen(true)
+              }}
+              className="flex w-full items-center gap-3 px-5 py-3 text-start text-sm text-slate-200 hover:bg-slate-800"
+            >
+              <ArrowDownUp size={17} />
+              ترتيب المشاريع
+            </button>
+            {isManager && (
+              <>
+                <UserMenuLink to="/attachments" icon={<Paperclip size={17} />} onClick={closeUserMenu}>
+                  كل المرفقات
+                </UserMenuLink>
+                <UserMenuLink to="/archive" icon={<Archive size={17} />} onClick={closeUserMenu}>
+                  الأرشيف
+                </UserMenuLink>
+                <UserMenuLink to="/trash" icon={<Trash2 size={17} />} onClick={closeUserMenu}>
+                  المحذوفات
+                </UserMenuLink>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {/* زر إظهار الشريط الجانبي على الحاسوب عند إخفائه (كانبان/تقويم) */}
       {collapsed && !sidebarOpen && (
@@ -230,6 +313,7 @@ export function AppLayout() {
           onClose={() => setNewTaskOpen(false)}
         />
       )}
+      {orderingOpen && <ProjectOrderModal onClose={() => setOrderingOpen(false)} />}
     </div>
   )
 }
