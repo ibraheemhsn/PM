@@ -2,8 +2,9 @@ import {
   ArrowDownWideNarrow, ArrowUpNarrowWide, CalendarDays, FilterX, LayoutGrid,
   List, Plus, Search, SlidersHorizontal,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useOutletContext } from 'react-router-dom'
+import type { MainScrollContext } from '../layout/AppLayout'
 import { useMe } from '../../hooks/useAuth'
 import { useAllUpdates, useProjects } from '../../hooks/useProjects'
 import { useMarkTasksSeen, useTags, useTaskMutations, useTasks } from '../../hooks/useTasks'
@@ -117,6 +118,13 @@ export function AllTasksPage() {
 
   // المهام المعروضة أمام المستخدم تُعلَّم مقروءةً (تُميَّز صفراء حتى المغادرة)
   useMarkTasksSeen(visibleTasks)
+
+  // إخفاء الشريط الجانبي تلقائياً على الحاسوب في الكانبان/التقويم (مساحة أوسع)
+  const { setSidebarCollapsed } = useOutletContext<MainScrollContext>()
+  useEffect(() => {
+    setSidebarCollapsed(layout === 'board' || layout === 'calendar')
+    return () => setSidebarCollapsed(false)
+  }, [layout, setSidebarCollapsed])
 
   /** فلاتر التحديثات: المشروع والبحث النصي فقط (الحالة/الوسوم/الموظف تخص المهام) */
   const visibleUpdates = useMemo(() => {

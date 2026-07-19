@@ -1,7 +1,7 @@
 import {
   CalendarDays, Check, CheckCheck, Flag, MessageCircle, Pencil, Repeat, Trash2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, formatDay } from '../../lib/utils'
 import {
@@ -39,8 +39,25 @@ export function KanbanBoard({
     setDragOverColumn(null)
   }
 
+  // Shift + عجلة الماوس = تمرير أفقي للوحة (كل الأعمدة في صف واحد)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.shiftKey || el.scrollWidth <= el.clientWidth) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   return (
-    <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+    <div
+      ref={scrollerRef}
+      className="scrollbar-slim flex items-start gap-3 overflow-x-auto pb-2"
+    >
       {TASK_STATUSES.map((status) => {
         const columnTasks = tasks.filter((t) => t.status === status)
         const canDrop =
@@ -66,7 +83,7 @@ export function KanbanBoard({
               endDrag()
             }}
             className={cn(
-              'min-h-[220px] rounded-xl border border-slate-200/70 bg-slate-100/60 p-2.5 transition-colors',
+              'min-h-[220px] w-72 shrink-0 rounded-xl border border-slate-200/70 bg-slate-100/60 p-2.5 transition-colors',
               dragOverColumn === status && 'border-blue-400 bg-blue-50/70 ring-1 ring-blue-300',
               // أثناء السحب: عتّم الأعمدة غير المسموح الإفلات فيها
               dragged && !canDrop && dragged.status !== status && 'opacity-50',

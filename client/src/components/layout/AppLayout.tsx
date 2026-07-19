@@ -10,9 +10,10 @@ import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 
 /** سياق يمرَّر للصفحات عبر Outlet — مرجع حاوية التمرير الرئيسية،
- *  تستخدمه صفحة المشروع للتنقل بالسحب عند الحدود (Overscroll). */
+ *  ودالة لإخفاء الشريط الجانبي على الحاسوب (تُستخدم في عرض الكانبان/التقويم). */
 export interface MainScrollContext {
   scrollRef: RefObject<HTMLElement | null>
+  setSidebarCollapsed: (collapsed: boolean) => void
 }
 
 /** الإطار العام: شريط جانبي (درج منزلق على الجوال) + مساحة المحتوى
@@ -27,6 +28,8 @@ export function AppLayout() {
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   // درج الشريط الجانبي على الجوال — يُغلق عند التنقل أو النقر خارجه
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // إخفاء الشريط الجانبي على الحاسوب (عرض الكانبان/التقويم لمساحة أوسع)
+  const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
   useEffect(() => setSidebarOpen(false), [location.pathname])
 
@@ -172,19 +175,32 @@ export function AppLayout() {
         </button>
       </header>
 
-      {/* خلفية إغلاق الدرج على الجوال */}
+      {/* زر إظهار الشريط الجانبي على الحاسوب عند إخفائه (كانبان/تقويم) */}
+      {collapsed && !sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="إظهار القائمة"
+          className="fixed start-3 top-3 z-30 hidden rounded-lg bg-slate-900 p-2 text-white shadow-lg hover:bg-slate-800 lg:block"
+        >
+          <Menu size={18} />
+        </button>
+      )}
+
+      {/* خلفية إغلاق الدرج — على الجوال دائماً، وعلى الحاسوب عند الإخفاء التلقائي */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/60 lg:hidden"
+          className={cn('fixed inset-0 z-40 bg-slate-900/60', !collapsed && 'lg:hidden')}
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* الشريط الجانبي: درج منزلق من اليمين على الجوال، ثابت على الشاشات الكبيرة */}
+      {/* الشريط الجانبي: درج منزلق على الجوال (وعلى الحاسوب عند الإخفاء)،
+          ثابت على الشاشات الكبيرة في الوضع العادي */}
       <div
         className={cn(
-          'fixed inset-y-0 start-0 z-50 transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0',
+          'fixed inset-y-0 start-0 z-50 transition-transform duration-200',
           sidebarOpen ? 'translate-x-0' : 'translate-x-full',
+          !collapsed && 'lg:static lg:z-auto lg:translate-x-0',
         )}
       >
         <Sidebar
@@ -197,7 +213,11 @@ export function AppLayout() {
 
       {/* pb للجوال: مساحة لشريط التنقل السفلي العائم كي لا يغطي آخر المحتوى */}
       <main ref={mainRef} className="flex-1 overflow-y-auto pb-24 pt-12 lg:pb-0 lg:pt-0">
-        <Outlet context={{ scrollRef: mainRef } satisfies MainScrollContext} />
+        <Outlet
+          context={
+            { scrollRef: mainRef, setSidebarCollapsed: setCollapsed } satisfies MainScrollContext
+          }
+        />
       </main>
 
       {/* شريط التنقل السفلي — جوال فقط، شبه شفاف أثناء التمرير */}
