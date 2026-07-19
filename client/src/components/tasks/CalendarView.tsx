@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import type { MainScrollContext } from '../layout/AppLayout'
 import { cn } from '../../lib/utils'
 import { isTaskOverdue, type Task } from '../../types'
 
@@ -23,6 +25,26 @@ export function CalendarView({
   })
 
   const todayKey = toKey(new Date())
+
+  // منع سحب الشريط الجانبي أثناء تمرير التقويم أفقياً — يُسمح به فقط عند
+  // الوصول لبداية التمرير (أقصى اليمين، scrollLeft ≈ 0)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const { setBlockEdgeSwipe } = useOutletContext<MainScrollContext>()
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const report = () => {
+      const scrollable = el.scrollWidth - el.clientWidth > 4
+      const atStart = !scrollable || Math.abs(el.scrollLeft) <= 2
+      setBlockEdgeSwipe(!atStart)
+    }
+    report()
+    el.addEventListener('scroll', report, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', report)
+      setBlockEdgeSwipe(false)
+    }
+  }, [setBlockEdgeSwipe])
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>()
@@ -90,7 +112,7 @@ export function CalendarView({
       </div>
 
       {/* على الجوال: الشبكة تحافظ على عرض أدنى وتتمرر أفقياً */}
-      <div className="overflow-x-auto">
+      <div ref={scrollerRef} className="overflow-x-auto">
         <div className="min-w-[640px]">
       {/* رؤوس أيام الأسبوع */}
       <div className="grid grid-cols-7 border-b border-slate-200 pb-1 text-center">
