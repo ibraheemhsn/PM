@@ -2,7 +2,8 @@ import {
   CalendarDays, Check, CheckCheck, Flag, MessageCircle, Pencil, Repeat, Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
+import type { MainScrollContext } from '../layout/AppLayout'
 import { cn, formatDay } from '../../lib/utils'
 import {
   EMPLOYEE_STATUS_FLOW, isTaskOverdue, PRIORITY_COLORS, PRIORITY_LABELS,
@@ -52,6 +53,25 @@ export function KanbanBoard({
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
+
+  // منع سحب الشريط الجانبي أثناء تمرير اللوحة أفقياً — يُسمح به فقط عند
+  // الوصول لبداية اللوحة (العمود الأول عند أقصى اليمين، scrollLeft ≈ 0)
+  const { setBlockEdgeSwipe } = useOutletContext<MainScrollContext>()
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const report = () => {
+      const scrollable = el.scrollWidth - el.clientWidth > 4
+      const atStart = !scrollable || Math.abs(el.scrollLeft) <= 2
+      setBlockEdgeSwipe(!atStart) // احظر السحب ما لم نكن عند العمود الأول
+    }
+    report()
+    el.addEventListener('scroll', report, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', report)
+      setBlockEdgeSwipe(false) // ألغِ الحظر عند مغادرة عرض اللوحة
+    }
+  }, [setBlockEdgeSwipe, tasks])
 
   return (
     <div

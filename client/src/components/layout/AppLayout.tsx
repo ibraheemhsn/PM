@@ -37,10 +37,12 @@ function UserMenuLink({
 }
 
 /** سياق يمرَّر للصفحات عبر Outlet — مرجع حاوية التمرير الرئيسية،
- *  ودالة لإخفاء الشريط الجانبي على الحاسوب (تُستخدم في عرض الكانبان/التقويم). */
+ *  ودالة لإخفاء الشريط الجانبي على الحاسوب (تُستخدم في عرض الكانبان/التقويم)،
+ *  وعلَم يمنع سحب الشريط الجانبي أثناء التمرير الأفقي (لوحة الكانبان). */
 export interface MainScrollContext {
   scrollRef: RefObject<HTMLElement | null>
   setSidebarCollapsed: (collapsed: boolean) => void
+  setBlockEdgeSwipe: (blocked: boolean) => void
 }
 
 /** الإطار العام: شريط جانبي (درج منزلق على الجوال) + مساحة المحتوى
@@ -63,6 +65,8 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // إخفاء الشريط الجانبي على الحاسوب (عرض الكانبان/التقويم لمساحة أوسع)
   const [collapsed, setCollapsed] = useState(false)
+  // منع سحب الشريط الجانبي أثناء التمرير الأفقي للوحة الكانبان — قيمة حيّة في ref
+  const blockEdgeSwipe = useRef(false)
   const location = useLocation()
   useEffect(() => {
     setSidebarOpen(false)
@@ -116,6 +120,8 @@ export function AppLayout() {
       const dy = t.clientY - start.y
       // سحب أفقي واضح (أطول من العمودي) كي لا يتداخل مع التمرير
       if (Math.abs(dx) <= Math.abs(dy) * 1.5) return
+      // منع فتح الدرج أثناء التمرير الأفقي للوحة الكانبان (إلا وهو عند أقصى اليمين)
+      if (!sidebarOpen && blockEdgeSwipe.current) return
       if (!sidebarOpen && start.x > window.innerWidth / 2 && dx < -50) {
         setSidebarOpen(true)
       } else if (sidebarOpen && dx > 50) {
@@ -298,7 +304,13 @@ export function AppLayout() {
       <main ref={mainRef} className="flex-1 overflow-y-auto pb-24 pt-12 lg:pb-0 lg:pt-0">
         <Outlet
           context={
-            { scrollRef: mainRef, setSidebarCollapsed: setCollapsed } satisfies MainScrollContext
+            {
+              scrollRef: mainRef,
+              setSidebarCollapsed: setCollapsed,
+              setBlockEdgeSwipe: (blocked: boolean) => {
+                blockEdgeSwipe.current = blocked
+              },
+            } satisfies MainScrollContext
           }
         />
       </main>
