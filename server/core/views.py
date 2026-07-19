@@ -794,6 +794,21 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(
+        detail=True, methods=["delete"],
+        url_path=r"comments/(?P<comment_id>\d+)",
+        permission_classes=[IsManager],
+    )
+    def delete_comment(self, request, pk=None, comment_id=None):
+        """حذف تعليق — للمدير فقط. get_object يحترم نطاق المهمة."""
+        task = self.get_object()
+        comment = task.comments.filter(id=comment_id).first()
+        if comment is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        comment.delete()
+        _log(task.project, request.user, f"حذف تعليقاً على المهمة «{task.title}»")
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ProjectUpdateViewSet(viewsets.ModelViewSet):
     """تحديثات المشروع (سجل الأحداث): الكل يضيف، وكل كاتب يعدّل/يحذف

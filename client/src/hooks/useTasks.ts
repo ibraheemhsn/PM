@@ -82,15 +82,22 @@ export function useTaskComments(taskId: number) {
 
 export function useCommentMutations(taskId: number) {
   const queryClient = useQueryClient()
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['comments', taskId] })
+    // عدّاد التعليقات معروض على بطاقة المهمة
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+  }
 
   return {
     create: useMutation({
       mutationFn: (body: string) => api.tasks.addComment(taskId, body),
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['comments', taskId] })
-        // عدّاد التعليقات معروض على بطاقة المهمة
-        queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      },
+      onSuccess: invalidate,
+    }),
+    // حذف تعليق — للمدير فقط
+    remove: useMutation({
+      mutationFn: (commentId: number) => api.tasks.deleteComment(taskId, commentId),
+      onMutate: haptics.warning,
+      onSuccess: invalidate,
     }),
   }
 }

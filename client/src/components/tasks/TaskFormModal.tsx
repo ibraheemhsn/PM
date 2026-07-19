@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { FileText, Paperclip, X } from 'lucide-react'
+import {
+  CalendarDays, FileText, Flag, Paperclip, Repeat, SlidersHorizontal, Tag, X,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useMe } from '../../hooks/useAuth'
 import { useProjects } from '../../hooks/useProjects'
@@ -17,6 +19,8 @@ import { Avatar } from '../ui/Avatar'
 import { ColorPicker } from '../ui/ColorPicker'
 import { Lightbox } from '../ui/Lightbox'
 import { Modal } from '../ui/Modal'
+import { StatusIcon } from './StatusIcon'
+import { TaskComments } from './TaskComments'
 
 const ATTACH_ACCEPT = 'image/*,.pdf,.txt,.md,.csv'
 
@@ -61,6 +65,12 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
   const [tags, setTags] = useState<string[]>(task?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
   const [assignees, setAssignees] = useState<number[]>(task?.assignees.map((a) => a.id) ?? [])
+  // نافذة مركّزة: عند التعديل تُطوى الحقول خلف «خيارات متقدمة»؛ عند الإنشاء مفتوحة
+  const [advancedOpen, setAdvancedOpen] = useState(!task)
+
+  // مشتقات لسطر الملخّص
+  const selectedProject = projects.find((p) => p.id === projectId)
+  const assignedUsers = employees.filter((e) => assignees.includes(e.id))
 
   const saving = create.isPending || update.isPending
 
@@ -223,6 +233,93 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           )}
         </div>
 
+        {/* سطر ملخّص: أيقونات البارامترات غير الافتراضية + زر خيارات متقدمة */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500">
+          {/* الحالة */}
+          <span className="flex items-center gap-1" title="الحالة">
+            <StatusIcon status={status} size={14} />
+            {STATUS_LABELS[status]}
+          </span>
+          {/* المشروع */}
+          {selectedProject && (
+            <span className="flex items-center gap-1" title="المشروع">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: selectedProject.color }}
+              />
+              {selectedProject.title}
+            </span>
+          )}
+          {/* المسندون (غير الافتراضي: يوجد إسناد) */}
+          {assignedUsers.length > 0 && (
+            <span className="flex items-center gap-1" title="الإسناد">
+              {assignedUsers.slice(0, 3).map((u) => (
+                <Avatar key={u.id} user={u} size={16} className="ring-1 ring-white" />
+              ))}
+              {assignedUsers.length > 3 && <span>+{assignedUsers.length - 3}</span>}
+            </span>
+          )}
+          {/* الأولوية (غير المتوسطة) */}
+          {priority !== 'MEDIUM' && (
+            <span
+              className="flex items-center gap-1"
+              title="الأولوية"
+              style={{ color: PRIORITY_COLORS[priority] }}
+            >
+              <Flag size={12} fill="currentColor" />
+              {PRIORITY_LABELS[priority]}
+            </span>
+          )}
+          {/* تاريخ الاستحقاق */}
+          {dueDate && (
+            <span className="flex items-center gap-1" title="يُنجز قبل">
+              <CalendarDays size={13} />
+              {dueDate}
+            </span>
+          )}
+          {/* التكرار (غير بلا تكرار) */}
+          {recurrence !== 'NONE' && (
+            <span className="flex items-center gap-1 text-sky-600" title="التكرار">
+              <Repeat size={12} />
+              {RECURRENCE_LABELS[recurrence]}
+            </span>
+          )}
+          {/* اللون */}
+          {color && (
+            <span
+              className="h-3.5 w-3.5 rounded-full ring-1 ring-slate-200"
+              title="اللون"
+              style={{ backgroundColor: color }}
+            />
+          )}
+          {/* الوسوم */}
+          {tags.length > 0 && (
+            <span className="flex items-center gap-1 text-blue-600" title="الوسوم">
+              <Tag size={12} />
+              {tags.length}
+            </span>
+          )}
+          {/* المرفقات */}
+          {attachments.length > 0 && (
+            <span className="flex items-center gap-1" title="المرفقات">
+              <Paperclip size={12} />
+              {attachments.length}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="ms-auto flex items-center gap-1 font-medium text-blue-600 hover:text-blue-700"
+          >
+            <SlidersHorizontal size={13} />
+            {advancedOpen ? 'إخفاء الخيارات' : 'خيارات متقدمة'}
+          </button>
+        </div>
+
+        {/* الحقول الكاملة — تظهر عند «خيارات متقدمة» */}
+        {advancedOpen && (
+        <>
         {/* إسناد المهمة لموظف واحد أو أكثر — للمدير فقط */}
         {isManager && (
         <div>
@@ -476,6 +573,8 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
             </p>
           )}
         </div>
+        </>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <button
@@ -500,6 +599,15 @@ export function TaskFormModal({ task, defaultProjectId, onClose }: TaskFormModal
           </button>
         </div>
       </form>
+
+      {/* التعليقات — للمهمة القائمة فقط (تحت حقول التعديل) */}
+      {task && (
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <h3 className="mb-2 text-sm font-medium text-slate-600">التعليقات</h3>
+          <TaskComments task={task} />
+        </div>
+      )}
+
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </Modal>
   )

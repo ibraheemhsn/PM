@@ -156,6 +156,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ body }),
       }),
+    /** حذف تعليق — للمدير فقط */
+    deleteComment: (taskId: number, commentId: number) =>
+      request<void>(`/tasks/${taskId}/comments/${commentId}/`, { method: 'DELETE' }),
   },
   attachments: {
     /** كل المرفقات عبر جميع المشاريع — لصفحة «كل المرفقات» */
