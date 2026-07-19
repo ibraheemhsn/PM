@@ -50,6 +50,8 @@ class Project(models.Model):
     accounts_link = models.CharField("رابط ملف الحسابات", max_length=500, blank=True, default="")
     # مجلد Google Drive لصور الكتب الواردة
     incoming_link = models.CharField("رابط مجلد الواردة", max_length=500, blank=True, default="")
+    # محادثة الذكاء الاصطناعي الخاصة بالمشروع (ChatGPT/Claude/Gemini…)
+    ai_link = models.CharField("رابط الذكاء الاصطناعي", max_length=500, blank=True, default="")
 
     # تعديل مقترح من موظف بانتظار مراجعة المدير — النسخة المعتمدة (details)
     # لا تتغير إلا عند الاعتماد

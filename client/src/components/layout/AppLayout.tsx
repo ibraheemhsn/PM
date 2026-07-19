@@ -6,6 +6,7 @@ import { enablePush, registerServiceWorker } from '../../lib/pwa'
 import { cn } from '../../lib/utils'
 import { CommandPalette } from '../search/CommandPalette'
 import { TaskFormModal } from '../tasks/TaskFormModal'
+import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 
 /** سياق يمرَّر للصفحات عبر Outlet — مرجع حاوية التمرير الرئيسية،
@@ -29,7 +30,38 @@ export function AppLayout() {
   const location = useLocation()
   useEffect(() => setSidebarOpen(false), [location.pathname])
 
-  // السحب من النصف الأيمن (RTL) لليسار يفتح الدرج — مكافئ لزر الهمبرغر
+  // الشريط العلوي على الجوال: يختفي عند النزول في الصفحة ويظهر عند الصعود
+  // — والشريط السفلي العائم يصبح شبه شفاف أثناء التمرير (بأي اتجاه)
+  const [topBarHidden, setTopBarHidden] = useState(false)
+  const [isScrolling, setIsScrolling] = useState(false)
+  const lastScrollTop = useRef(0)
+  const scrollIdleTimer = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el) return
+    const onScroll = () => {
+      // شفافية الشريط السفلي طوال التمرير، وتزول بعد توقف قصير
+      setIsScrolling(true)
+      window.clearTimeout(scrollIdleTimer.current)
+      scrollIdleTimer.current = window.setTimeout(() => setIsScrolling(false), 250)
+
+      const scrollTop = el.scrollTop
+      const delta = scrollTop - lastScrollTop.current
+      if (Math.abs(delta) < 8) return // تجاهل الاهتزازات الصغيرة
+      setTopBarHidden(delta > 0 && scrollTop > 60)
+      lastScrollTop.current = scrollTop
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.clearTimeout(scrollIdleTimer.current)
+    }
+  }, [])
+  // عند التنقل لصفحة جديدة أظهر الشريط من جديد
+  useEffect(() => setTopBarHidden(false), [location.pathname])
+
+  // إيماءات الدرج على الجوال (RTL): سحب لليسار من النصف الأيمن يفتحه،
+  // وسحب لليمين (باتجاه حافته) وهو مفتوح يغلقه
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   useEffect(() => {
     const onStart = (e: TouchEvent) => {
@@ -39,17 +71,16 @@ export function AppLayout() {
     const onEnd = (e: TouchEvent) => {
       const start = touchStart.current
       touchStart.current = null
-      if (!start || sidebarOpen || window.innerWidth >= 1024) return
+      if (!start || window.innerWidth >= 1024) return
       const t = e.changedTouches[0]
       const dx = t.clientX - start.x
       const dy = t.clientY - start.y
-      // يبدأ من النصف الأيمن، وسحب أفقي واضح لليسار (أطول من العمودي)
-      if (
-        start.x > window.innerWidth / 2 &&
-        dx < -50 &&
-        Math.abs(dx) > Math.abs(dy) * 1.5
-      ) {
+      // سحب أفقي واضح (أطول من العمودي) كي لا يتداخل مع التمرير
+      if (Math.abs(dx) <= Math.abs(dy) * 1.5) return
+      if (!sidebarOpen && start.x > window.innerWidth / 2 && dx < -50) {
         setSidebarOpen(true)
+      } else if (sidebarOpen && dx > 50) {
+        setSidebarOpen(false)
       }
     }
     window.addEventListener('touchstart', onStart, { passive: true })
@@ -113,8 +144,14 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-800">
-      {/* شريط علوي للجوال: زر القائمة + الاسم (يوجّه للرئيسية) + البحث */}
-      <header className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-slate-900 px-4 py-3 text-white lg:hidden">
+      {/* شريط علوي للجوال: زر القائمة + الاسم (يوجّه للرئيسية) + البحث
+          — ينزلق مختفياً عند النزول في الصفحة ويعود عند الصعود */}
+      <header
+        className={cn(
+          'fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-slate-900 px-4 py-3 text-white transition-transform duration-200 lg:hidden',
+          topBarHidden && '-translate-y-full',
+        )}
+      >
         <button
           onClick={() => setSidebarOpen(true)}
           aria-label="فتح القائمة"
@@ -158,9 +195,13 @@ export function AppLayout() {
         />
       </div>
 
-      <main ref={mainRef} className="flex-1 overflow-y-auto pt-12 lg:pt-0">
+      {/* pb للجوال: مساحة لشريط التنقل السفلي العائم كي لا يغطي آخر المحتوى */}
+      <main ref={mainRef} className="flex-1 overflow-y-auto pb-24 pt-12 lg:pb-0 lg:pt-0">
         <Outlet context={{ scrollRef: mainRef } satisfies MainScrollContext} />
       </main>
+
+      {/* شريط التنقل السفلي — جوال فقط، شبه شفاف أثناء التمرير */}
+      <BottomNav onOpenSearch={() => setPaletteOpen(true)} dimmed={isScrolling} />
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
       {newTaskOpen && (
         <TaskFormModal

@@ -1,5 +1,5 @@
 import {
-  Archive, ArchiveRestore, Check, ChevronDown, ChevronUp, ChevronsDown,
+  Archive, ArchiveRestore, Bot, Check, ChevronDown, ChevronUp, ChevronsDown,
   ChevronsUp, Eye, FileOutput, FileSpreadsheet, Folder, FolderDown, Pencil,
   Plus, Save, Trash2, Undo2,
 } from 'lucide-react'
@@ -187,6 +187,11 @@ export function ProjectPage() {
                 label: 'مجلد الواردة (Google Drive)',
                 icon: <FolderDown size={21} className="text-violet-600" />,
               },
+              {
+                link: project.ai_link,
+                label: 'محادثة الذكاء الاصطناعي',
+                icon: <Bot size={21} className="text-fuchsia-600" />,
+              },
             ] as const
           )
             .filter((item) => item.link)
@@ -348,8 +353,10 @@ function PullHint({
   return (
     <div
       className={cn(
-        'pointer-events-none fixed inset-x-0 z-30 flex justify-center px-4',
-        direction === 'prev' ? 'top-16' : 'bottom-6',
+        'pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4',
+        // السفلي يرتفع فوق شريط التنقل العائم على الجوال — وعلى الشاشات
+        // الكبيرة لا شريط سفلياً فيبقى قرب الحافة
+        direction === 'prev' ? 'top-16' : 'bottom-24 lg:bottom-6',
       )}
       style={{ opacity: Math.max(progress, 0.35) }}
     >

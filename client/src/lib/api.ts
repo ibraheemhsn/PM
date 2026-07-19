@@ -19,6 +19,8 @@ export interface ProjectInput {
   accounts_link?: string
   /** مجلد Google Drive لصور الكتب الواردة */
   incoming_link?: string
+  /** محادثة الذكاء الاصطناعي الخاصة بالمشروع */
+  ai_link?: string
 }
 
 export interface TaskInput {

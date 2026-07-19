@@ -8,6 +8,7 @@ import { NotificationsPage } from './components/notifications/NotificationsPage'
 import { ArchivePage } from './components/projects/ArchivePage'
 import { AttachmentsPage } from './components/projects/AttachmentsPage'
 import { ProjectPage } from './components/projects/ProjectPage'
+import { ProjectsPage } from './components/projects/ProjectsPage'
 import { TrashPage } from './components/projects/TrashPage'
 import { AllTasksPage } from './components/tasks/AllTasksPage'
 import { useMe } from './hooks/useAuth'
@@ -37,6 +38,7 @@ export default function App() {
           element={me.is_manager ? <DashboardPage /> : <Navigate to="/tasks" replace />}
         />
         <Route path="/tasks" element={<AllTasksPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />
         <Route path="/attachments" element={<AttachmentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />

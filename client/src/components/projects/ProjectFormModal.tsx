@@ -21,6 +21,7 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
   const [outgoingLink, setOutgoingLink] = useState(project?.outgoing_link ?? '')
   const [accountsLink, setAccountsLink] = useState(project?.accounts_link ?? '')
   const [incomingLink, setIncomingLink] = useState(project?.incoming_link ?? '')
+  const [aiLink, setAiLink] = useState(project?.ai_link ?? '')
 
   const saving = create.isPending || update.isPending
 
@@ -35,6 +36,7 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
       outgoing_link: outgoingLink.trim(),
       accounts_link: accountsLink.trim(),
       incoming_link: incomingLink.trim(),
+      ai_link: aiLink.trim(),
     }
 
     if (project) {
@@ -102,6 +104,13 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
             onChange={(e) => setIncomingLink(e.target.value)}
             dir="auto"
             placeholder="مجلد الواردة — Google Drive لصور الكتب الواردة 📥"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+          <input
+            value={aiLink}
+            onChange={(e) => setAiLink(e.target.value)}
+            dir="auto"
+            placeholder="رابط الذكاء الاصطناعي — محادثة المشروع (ChatGPT/Claude…) 🤖"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
         </div>

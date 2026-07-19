@@ -99,7 +99,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             "id", "title", "color", "details",
-            "share_link", "outgoing_link", "accounts_link", "incoming_link",
+            "share_link", "outgoing_link", "accounts_link", "incoming_link", "ai_link",
             "pending_details", "has_pending_details", "pending_details_by", "pending_details_at",
             "archived_at", "deleted_at", "tasks_count", "has_unread",
             "created_at", "updated_at",

@@ -38,6 +38,8 @@ export interface Project {
   accounts_link: string
   /** مجلد Google Drive لصور الكتب الواردة */
   incoming_link: string
+  /** محادثة الذكاء الاصطناعي الخاصة بالمشروع (ChatGPT/Claude/Gemini…) */
+  ai_link: string
   /** تعديل مقترح بانتظار مراجعة المدير — النسخة المعتمدة في details لا تتغير إلا بالاعتماد */
   pending_details: string
   has_pending_details: boolean
