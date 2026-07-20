@@ -270,9 +270,16 @@ function MailMessageModal({ id, onClose }: { id: number; onClose: () => void }) 
   }, [onClose])
 
   return createPortal(
-    // يغطي منطقة المحتوى فقط: على الحاسوب يبدأ بعد الشريط الجانبي (w-72)،
-    // وعلى الجوال يملأ الشاشة كاملة
-    <div className="fixed inset-0 z-50 flex flex-col bg-white text-slate-800 shadow-2xl lg:start-72">
+    // خلفية معتمة تغطي منطقة المحتوى (بعد الشريط الجانبي على الحاسوب)،
+    // واللوح بداخلها بعرض الكروت (max-w-4xl) وبكامل الارتفاع
+    <div
+      className="fixed inset-0 z-50 flex justify-center bg-slate-900/40 lg:start-72"
+      onMouseDown={onClose}
+    >
+    <div
+      className="flex h-full w-full max-w-4xl flex-col bg-white text-slate-800 shadow-2xl"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       {/* الترويسة */}
       <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
         <button
@@ -292,7 +299,7 @@ function MailMessageModal({ id, onClose }: { id: number; onClose: () => void }) 
         {isLoading && <p className="py-10 text-center text-sm text-slate-400">جارٍ فتح الرسالة…</p>}
         {isError && <p className="py-10 text-center text-sm text-red-500">تعذر فتح الرسالة.</p>}
         {data && (
-          <div className="mx-auto max-w-3xl">
+          <div>
             <div className="mb-4 space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs">
               <MetaField label="From" value={data.sender} />
               <MetaField label="To" value={data.to} />
@@ -309,7 +316,7 @@ function MailMessageModal({ id, onClose }: { id: number; onClose: () => void }) 
       {/* شريط الرد */}
       {data && (
         <div className="shrink-0 border-t border-slate-200 bg-slate-50">
-          <div className="mx-auto max-w-3xl">
+          <div>
             {mode ? (
               <ReplyComposer
                 message={data}
@@ -327,6 +334,7 @@ function MailMessageModal({ id, onClose }: { id: number; onClose: () => void }) 
           </div>
         </div>
       )}
+    </div>
     </div>,
     document.body,
   )
