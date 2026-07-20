@@ -269,6 +269,14 @@ export const api = {
     /** رسائل الوارد التي يحمل موضوعها وسم المشروع */
     forProject: (projectId: number) =>
       request<{ tag: string; messages: EmailMessage[] }>(`/emails/?project=${projectId}`),
+    /** صندوق البريد الموحّد لصفحة «البريد»: الوارد/الصادر مع ترشيح
+     *  اختياري بمشروع (وسمه) وبحث نصي على الخادم */
+    mailbox: (params: { folder: 'received' | 'sent'; project?: number | null; q?: string }) => {
+      const qs = new URLSearchParams({ folder: params.folder })
+      if (params.project) qs.set('project', String(params.project))
+      if (params.q?.trim()) qs.set('q', params.q.trim())
+      return request<{ folder: string; tag: string; messages: EmailMessage[] }>(`/mailbox/?${qs}`)
+    },
   },
   notifications: {
     /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */

@@ -242,7 +242,11 @@ export interface EmailMessage {
   id: number
   subject: string
   sender: string
+  /** المستلِم — يُعرض في مجلد الصادر (صفحة البريد الموحّدة) */
+  to?: string
   date: string | null
+  /** المجلد الذي أتت منه — «الوارد» أو «الصادر» */
+  folder?: 'received' | 'sent'
 }
 
 /** إشعار داخل التطبيق — يُعرض في جرس الشريط الجانبي وكإشعار متصفح مع صوت */

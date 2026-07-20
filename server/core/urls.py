@@ -5,7 +5,7 @@ from .views import (
     ActivityLogViewSet, AttachmentViewSet, DetailsImageUploadView,
     EmailOAuthCallbackView, EmailOAuthDisconnectView, EmailOAuthStartView,
     EmailSettingsView, EmailTestView, GlobalSearchView, LoginView, LogoutView,
-    MeView, NotificationViewSet, ProjectEmailsView, ProjectOrderView,
+    MailboxView, MeView, NotificationViewSet, ProjectEmailsView, ProjectOrderView,
     ProjectUpdateViewSet, ProjectViewSet, PushKeyView, PushSubscribeView,
     TagViewSet, TaskViewSet, UserViewSet,
 )
@@ -35,5 +35,6 @@ urlpatterns = [
     path("email/oauth/callback/", EmailOAuthCallbackView.as_view(), name="email-oauth-callback"),
     path("email/oauth/disconnect/", EmailOAuthDisconnectView.as_view(), name="email-oauth-disconnect"),
     path("emails/", ProjectEmailsView.as_view(), name="project-emails"),
+    path("mailbox/", MailboxView.as_view(), name="mailbox"),
     path("", include(router.urls)),
 ]

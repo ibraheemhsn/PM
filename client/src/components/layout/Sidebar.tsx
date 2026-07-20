@@ -103,6 +103,10 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
           <ListTodo size={17} />
           {isManager ? 'جميع المهام' : 'مهامي'}
         </NavLink>
+        <NavLink to="/mail" className={navLinkClass}>
+          <Mail size={17} />
+          البريد
+        </NavLink>
       </nav>
 
       {/* المشاريع: المدير يرى الكل ويدير؛ الموظف يرى مشاريعه (التي له فيها مهام) */}

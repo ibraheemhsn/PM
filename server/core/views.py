@@ -28,7 +28,7 @@ from rest_framework.views import APIView
 from django.conf import settings
 
 from . import google_oauth
-from .emails import EmailFetchError, fetch_project_emails, test_connection
+from .emails import EmailFetchError, fetch_mailbox, fetch_project_emails, test_connection
 from .models import (
     ActivityLog, Attachment, EmailAccount, Notification, Project, ProjectUpdate,
     ProjectUpdateRead, PushSubscription, Tag, Task, TaskComment,
@@ -1121,6 +1121,42 @@ class ProjectEmailsView(APIView):
         except EmailFetchError as error:
             return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({"tag": project.email_tag, "messages": messages})
+
+
+class MailboxView(APIView):
+    """صندوق بريد المستخدم الموحّد لصفحة «البريد»: الوارد أو الصادر،
+    مع ترشيح اختياري بوسم مشروع وبحث نصي. يتطلب ربط البريد أولاً."""
+
+    def get(self, request):
+        account = EmailAccount.objects.filter(user=request.user).first()
+        if not account:
+            return Response(
+                {"detail": "اربط بريدك أولاً من صفحة «إعدادات البريد».", "needs_setup": True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        folder = request.query_params.get("folder", "received")
+        if folder not in ("received", "sent"):
+            folder = "received"
+        query = request.query_params.get("q", "").strip()
+
+        tag = ""
+        if project_id := request.query_params.get("project"):
+            project = Project.objects.filter(id=project_id).first()
+            if not project:
+                return Response(
+                    {"detail": "المشروع غير موجود."}, status=status.HTTP_404_NOT_FOUND
+                )
+            tag = project.email_tag.strip()
+            if not tag:
+                return Response(
+                    {"detail": "حدد «وسم المشروع» في تعديل المشروع أولاً."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        try:
+            messages = fetch_mailbox(account, folder=folder, tag=tag, query=query)
+        except EmailFetchError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"folder": folder, "tag": tag, "messages": messages})
 
 
 class GlobalSearchView(APIView):

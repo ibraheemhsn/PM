@@ -5,6 +5,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { ActivityPage } from './components/activity/ActivityPage'
 import { DashboardPage } from './components/dashboard/DashboardPage'
 import { MyDayPage } from './components/dashboard/MyDayPage'
+import { MailPage } from './components/email/MailPage'
 import { NotificationsPage } from './components/notifications/NotificationsPage'
 import { ArchivePage } from './components/projects/ArchivePage'
 import { AttachmentsPage } from './components/projects/AttachmentsPage'
@@ -42,6 +43,8 @@ export default function App() {
         {/* «يومي»: نظرة شخصية للجميع — مهامي المستحقة والمتأخرة وما ينتظر ردّي */}
         <Route path="/my-day" element={<MyDayPage />} />
         <Route path="/tasks" element={<AllTasksPage />} />
+        {/* «البريد»: صندوق موحّد لرسائل المستخدم، فرزها حسب وسم المشروع */}
+        <Route path="/mail" element={<MailPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />
         <Route path="/attachments" element={<AttachmentsPage />} />
