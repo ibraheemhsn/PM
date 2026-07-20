@@ -284,6 +284,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(folder ? { folder } : {}),
       }),
+    /** إرسال رسالة (رد/إعادة توجيه) عبر SMTP الخاص بالمستخدم */
+    send: (data: { to: string; subject: string; body: string; in_reply_to?: string }) =>
+      request<{ sent: boolean }>('/mailbox/send/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
   notifications: {
     /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */

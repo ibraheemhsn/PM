@@ -11,6 +11,7 @@ import re
 import smtplib
 from email import policy
 from email.header import decode_header, make_header
+from email.message import EmailMessage as OutgoingMessage
 from email.utils import parsedate_to_datetime
 
 from django.utils import timezone
@@ -263,6 +264,41 @@ def test_connection(account) -> dict:
         "imap_ok": imap_ok, "imap_error": imap_error,
         "smtp_ok": smtp_ok, "smtp_error": smtp_error,
     }
+
+
+def send_email(account, to: str, subject: str, body: str, in_reply_to: str = "") -> None:
+    """إرسال رسالة نصية عبر SMTP الخاص بالمستخدم (Google XOAUTH2 أو كلمة مرور).
+    in_reply_to (Message-ID الأصل) يربط الرد بسلسلته في صناديق المستلمين."""
+    if not to.strip():
+        raise EmailFetchError("لا يوجد مستلِم.")
+    message = OutgoingMessage()
+    message["From"] = account.email_address
+    message["To"] = to
+    message["Subject"] = subject
+    if in_reply_to:
+        message["In-Reply-To"] = in_reply_to
+        message["References"] = in_reply_to
+    message.set_content(body or "")
+
+    try:
+        if account.smtp_port == 465:
+            server = smtplib.SMTP_SSL(account.smtp_host, account.smtp_port, timeout=TIMEOUT)
+        else:
+            server = smtplib.SMTP(account.smtp_host, account.smtp_port, timeout=TIMEOUT)
+            server.starttls()
+        if account.auth_method == "GOOGLE":
+            encoded = base64.b64encode(_xoauth2_string(account).encode()).decode()
+            code, reply = server.docmd("AUTH", "XOAUTH2 " + encoded)
+            if code != 235:
+                raise EmailFetchError(f"رفض خادم الإرسال المصادقة ({code}): {reply!r}")
+        else:
+            server.login(account.email_address, account.password)
+        server.send_message(message)
+        server.quit()
+    except EmailFetchError:
+        raise
+    except Exception as error:
+        raise EmailFetchError(f"تعذر إرسال البريد — {error}") from error
 
 
 # ===== المزامنة إلى قاعدة البيانات (صندوق منفصل لكل مستخدم) =====

@@ -28,7 +28,7 @@ from rest_framework.views import APIView
 from django.conf import settings
 
 from . import google_oauth
-from .emails import EmailFetchError, sync_account, test_connection
+from .emails import EmailFetchError, send_email, sync_account, test_connection
 from .models import (
     ActivityLog, Attachment, EmailAccount, EmailFolder, EmailMessage, Notification,
     Project, ProjectUpdate, ProjectUpdateRead, PushSubscription, Tag, Task,
@@ -1175,6 +1175,27 @@ class EmailMessageViewSet(viewsets.ReadOnlyModelViewSet):
         except EmailFetchError as error:
             return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({"results": results})
+
+    @action(detail=False, methods=["post"])
+    def send(self, request):
+        """إرسال رسالة (رد/إعادة توجيه) عبر SMTP الخاص بالمستخدم."""
+        account = EmailAccount.objects.filter(user=request.user).first()
+        if not account:
+            return Response(
+                {"detail": "اربط بريدك أولاً من صفحة «إعدادات البريد».", "needs_setup": True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        to = (request.data.get("to") or "").strip()
+        subject = (request.data.get("subject") or "").strip()
+        body = request.data.get("body") or ""
+        in_reply_to = (request.data.get("in_reply_to") or "").strip()
+        if not to:
+            return Response({"detail": "أدخل المستلِم."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            send_email(account, to, subject, body, in_reply_to=in_reply_to)
+        except EmailFetchError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"sent": True})
 
 
 class GlobalSearchView(APIView):
