@@ -10,8 +10,8 @@ from pathlib import Path
 from rest_framework import serializers
 
 from .models import (
-    ActivityLog, Attachment, Notification, Project, ProjectUpdate, Tag, Task,
-    TaskComment, User,
+    ActivityLog, Attachment, EmailAccount, Notification, Project, ProjectUpdate,
+    Tag, Task, TaskComment, User,
 )
 from .thumbnails import AVATAR_THUMB_SIZE, make_thumbnail, thumb_name
 
@@ -100,6 +100,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "color", "details",
             "share_link", "outgoing_link", "accounts_link", "incoming_link", "ai_link",
+            "email_tag",
             "pending_details", "has_pending_details", "pending_details_by", "pending_details_at",
             "archived_at", "deleted_at", "tasks_count", "has_unread",
             "created_at", "updated_at",
@@ -321,6 +322,35 @@ class AttachmentSerializer(serializers.ModelSerializer):
         # بعد الرفع يُعدَّل الوصف فقط
         validated_data.pop("file", None)
         validated_data.pop("project", None)
+        return super().update(instance, validated_data)
+
+
+class EmailAccountSerializer(serializers.ModelSerializer):
+    """إعدادات بريد المستخدم — كلمة المرور تُكتب فقط ولا تُعاد أبداً،
+    وعند التعديل يجوز تركها فارغة للإبقاء على المحفوظة."""
+
+    password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, style={"input_type": "password"}
+    )
+
+    class Meta:
+        model = EmailAccount
+        fields = [
+            "email_address", "password", "auth_method",
+            "imap_host", "imap_port", "smtp_host", "smtp_port", "updated_at",
+        ]
+        read_only_fields = ["auth_method", "updated_at"]
+
+    def validate(self, attrs):
+        # عند الإنشاء الأول (أو التحول من ربط Google) كلمة المرور إلزامية
+        needs_password = self.instance is None or self.instance.auth_method != "PASSWORD"
+        if needs_password and not attrs.get("password"):
+            raise serializers.ValidationError({"password": "كلمة المرور مطلوبة."})
+        return attrs
+
+    def update(self, instance, validated_data):
+        if not validated_data.get("password"):
+            validated_data.pop("password", None)  # أبقِ المحفوظة
         return super().update(instance, validated_data)
 
 

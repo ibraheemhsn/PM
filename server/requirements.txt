@@ -4,3 +4,5 @@ django-cors-headers>=4.4
 Pillow>=10.0
 
 pywebpush>=2.0
+# نداءات Google OAuth (تسجيل الدخول عبر Google لربط البريد)
+requests>=2.31

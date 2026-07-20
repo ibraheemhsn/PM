@@ -12,7 +12,9 @@ from datetime import timedelta
 from django.contrib.auth import authenticate, login, logout
 from django.core.files.storage import default_storage
 from django.db.models import Count, Max, Q
+from django.http import HttpResponseRedirect
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status, viewsets
@@ -25,8 +27,10 @@ from rest_framework.views import APIView
 
 from django.conf import settings
 
+from . import google_oauth
+from .emails import EmailFetchError, fetch_project_emails, test_connection
 from .models import (
-    ActivityLog, Attachment, Notification, Project, ProjectUpdate,
+    ActivityLog, Attachment, EmailAccount, Notification, Project, ProjectUpdate,
     ProjectUpdateRead, PushSubscription, Tag, Task, TaskComment,
     TaskCommentRead, TaskSeen, User,
 )
@@ -34,10 +38,10 @@ from .permissions import IsManager, IsManagerOrReadOnly, is_manager
 from .push import send_push
 from .thumbnails import ATTACHMENT_THUMB_SIZE, is_image_name, make_thumbnail, thumb_name
 from .serializers import (
-    ActivityLogSerializer, AttachmentSerializer, ImageUploadSerializer,
-    NotificationSerializer, ProjectSerializer, ProjectUpdateSerializer,
-    TagSerializer, TaskCommentSerializer, TaskSerializer, UserBriefSerializer,
-    UserSerializer,
+    ActivityLogSerializer, AttachmentSerializer, EmailAccountSerializer,
+    ImageUploadSerializer, NotificationSerializer, ProjectSerializer,
+    ProjectUpdateSerializer, TagSerializer, TaskCommentSerializer,
+    TaskSerializer, UserBriefSerializer, UserSerializer,
 )
 
 ALLOWED_TASK_ORDERINGS = {"created_at", "updated_at"}
@@ -986,6 +990,137 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+
+
+# ===== ربط البريد الإلكتروني (IMAP/SMTP لكل مستخدم) =====
+
+class EmailSettingsView(APIView):
+    """إعدادات بريد المستخدم الحالي: قراءة (بلا كلمة المرور) وحفظ يدوي."""
+
+    def get(self, request):
+        account = EmailAccount.objects.filter(user=request.user).first()
+        return Response({
+            "configured": account is not None,
+            # هل «تسجيل الدخول عبر Google» مفعّل على الخادم؟
+            "google_available": google_oauth.is_configured(),
+            "settings": EmailAccountSerializer(account).data if account else None,
+        })
+
+    def put(self, request):
+        account = EmailAccount.objects.filter(user=request.user).first()
+        serializer = EmailAccountSerializer(account, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # الحفظ اليدوي يعيد الطريقة إلى كلمة المرور ويمسح توكنات Google
+        serializer.save(
+            user=request.user,
+            auth_method=EmailAccount.AuthMethod.PASSWORD,
+            google_refresh_token="", google_access_token="", google_token_expiry=None,
+        )
+        return Response({
+            "configured": True,
+            "google_available": google_oauth.is_configured(),
+            "settings": serializer.data,
+        })
+
+
+class EmailOAuthStartView(APIView):
+    """بدء «تسجيل الدخول عبر Google»: تحويل المتصفح لشاشة موافقة Google."""
+
+    def get(self, request):
+        if not google_oauth.is_configured():
+            return Response(
+                {"detail": "ربط Google غير مفعّل — اضبط GOOGLE_CLIENT_ID وGOOGLE_CLIENT_SECRET على الخادم."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        state = get_random_string(32)
+        request.session["email_oauth_state"] = state
+        return HttpResponseRedirect(google_oauth.build_auth_url(state))
+
+
+class EmailOAuthCallbackView(APIView):
+    """عودة Google بعد الموافقة: استبدال الكود بالتوكنات وربط الحساب."""
+
+    def get(self, request):
+        def back(query: str) -> HttpResponseRedirect:
+            return HttpResponseRedirect(
+                f"{settings.FRONTEND_ORIGIN}/email-settings?{query}"
+            )
+
+        expected_state = request.session.pop("email_oauth_state", None)
+        if not expected_state or request.query_params.get("state") != expected_state:
+            return back("google=error&reason=state")
+        if request.query_params.get("error"):
+            return back("google=error&reason=denied")
+        code = request.query_params.get("code", "")
+        try:
+            tokens = google_oauth.exchange_code(code)
+            email_address = google_oauth.fetch_email(tokens["access_token"])
+        except google_oauth.GoogleOAuthError:
+            return back("google=error&reason=exchange")
+
+        account, _ = EmailAccount.objects.update_or_create(
+            user=request.user,
+            defaults={
+                "email_address": email_address,
+                "auth_method": EmailAccount.AuthMethod.GOOGLE,
+                "password": "",
+                "imap_host": "imap.gmail.com", "imap_port": 993,
+                "smtp_host": "smtp.gmail.com", "smtp_port": 587,
+            },
+        )
+        google_oauth.store_tokens(account, tokens)
+        return back("google=connected")
+
+
+class EmailOAuthDisconnectView(APIView):
+    """فصل حساب Google: إلغاء التوكن لدى Google وحذف إعدادات البريد."""
+
+    def post(self, request):
+        account = EmailAccount.objects.filter(user=request.user).first()
+        if account:
+            if account.auth_method == EmailAccount.AuthMethod.GOOGLE:
+                google_oauth.revoke(account)
+            account.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EmailTestView(APIView):
+    """اختبار الاتصال بخادمي IMAP وSMTP بالإعدادات المحفوظة."""
+
+    def post(self, request):
+        account = EmailAccount.objects.filter(user=request.user).first()
+        if not account:
+            return Response(
+                {"detail": "لم تُحفظ إعدادات البريد بعد."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(test_connection(account))
+
+
+class ProjectEmailsView(APIView):
+    """إيميلات المشروع: رسائل وارد المستخدم التي يحمل موضوعها وسم المشروع."""
+
+    def get(self, request):
+        project_id = request.query_params.get("project")
+        project = Project.objects.filter(id=project_id).first()
+        if not project:
+            return Response({"detail": "المشروع غير موجود."}, status=status.HTTP_404_NOT_FOUND)
+        if not project.email_tag.strip():
+            return Response(
+                {"detail": "حدد «وسم المشروع» في تعديل المشروع أولاً — الرسائل التي يحمل موضوعها الوسم تُعرض هنا."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        account = EmailAccount.objects.filter(user=request.user).first()
+        if not account:
+            return Response(
+                {"detail": "اربط بريدك أولاً من صفحة «إعدادات البريد».", "needs_setup": True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            messages = fetch_project_emails(account, project.email_tag)
+        except EmailFetchError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"tag": project.email_tag, "messages": messages})
 
 
 class GlobalSearchView(APIView):

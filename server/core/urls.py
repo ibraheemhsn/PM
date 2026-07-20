@@ -3,8 +3,9 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     ActivityLogViewSet, AttachmentViewSet, DetailsImageUploadView,
-    GlobalSearchView, LoginView, LogoutView, MeView, NotificationViewSet,
-    ProjectOrderView,
+    EmailOAuthCallbackView, EmailOAuthDisconnectView, EmailOAuthStartView,
+    EmailSettingsView, EmailTestView, GlobalSearchView, LoginView, LogoutView,
+    MeView, NotificationViewSet, ProjectEmailsView, ProjectOrderView,
     ProjectUpdateViewSet, ProjectViewSet, PushKeyView, PushSubscribeView,
     TagViewSet, TaskViewSet, UserViewSet,
 )
@@ -28,5 +29,11 @@ urlpatterns = [
     path("push/key/", PushKeyView.as_view(), name="push-key"),
     path("push/subscribe/", PushSubscribeView.as_view(), name="push-subscribe"),
     path("search/", GlobalSearchView.as_view(), name="global-search"),
+    path("email/settings/", EmailSettingsView.as_view(), name="email-settings"),
+    path("email/test/", EmailTestView.as_view(), name="email-test"),
+    path("email/oauth/start/", EmailOAuthStartView.as_view(), name="email-oauth-start"),
+    path("email/oauth/callback/", EmailOAuthCallbackView.as_view(), name="email-oauth-callback"),
+    path("email/oauth/disconnect/", EmailOAuthDisconnectView.as_view(), name="email-oauth-disconnect"),
+    path("emails/", ProjectEmailsView.as_view(), name="project-emails"),
     path("", include(router.urls)),
 ]

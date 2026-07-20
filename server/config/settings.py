@@ -23,6 +23,19 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY") or (
 )
 VAPID_ADMIN_EMAIL = os.environ.get("VAPID_ADMIN_EMAIL") or "baitydev3@gmail.com"
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+
+# «تسجيل الدخول عبر Google» لربط البريد (OAuth 2.0) — أنشئ بيانات العميل من
+# Google Cloud Console وسجّل GOOGLE_REDIRECT_URI نفسه في شاشة الاعتماد
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get(
+    "GOOGLE_REDIRECT_URI",
+    "http://localhost:8000/api/email/oauth/callback/" if DEBUG else "",
+)
+# وجهة المتصفح بعد إتمام الربط — واجهة Vite في التطوير، ونفس الأصل في الإنتاج
+FRONTEND_ORIGIN = os.environ.get(
+    "FRONTEND_ORIGIN", "http://localhost:5173" if DEBUG else ""
+)
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",") if h]
 # مطلوب في الإنتاج خلف HTTPS، مثال: https://pm.example.com
 CSRF_TRUSTED_ORIGINS = [

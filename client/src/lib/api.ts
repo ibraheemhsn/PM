@@ -3,9 +3,9 @@
  *  - المصادقة عبر جلسات Django: نرفق ترويسة X-CSRFToken من الكعكة
  *    (تُزرع عند نداء /auth/me/ أول مرة) مع كل طلب غير GET. */
 import type {
-  ActivityEntry, AppNotification, Attachment, GlobalSearchResults, Project,
-  ProjectUpdate, Tag, Task, TaskComment, TaskPriority, TaskRecurrence,
-  TaskStatus, User, UserBrief,
+  ActivityEntry, AppNotification, Attachment, EmailMessage, EmailSettings,
+  GlobalSearchResults, Project, ProjectUpdate, Tag, Task, TaskComment,
+  TaskPriority, TaskRecurrence, TaskStatus, User, UserBrief,
 } from '../types'
 
 export interface ProjectInput {
@@ -22,6 +22,14 @@ export interface ProjectInput {
   incoming_link?: string
   /** محادثة الذكاء الاصطناعي الخاصة بالمشروع */
   ai_link?: string
+  /** وسم المشروع — يُدرج في موضوع الإيميلات المرتبطة */
+  email_tag?: string
+}
+
+/** إعدادات البريد المرسلة للحفظ — كلمة المرور اختيارية عند التعديل،
+ *  وطريقة الربط يحددها الخادم (الحفظ اليدوي = PASSWORD دائماً) */
+export interface EmailSettingsInput extends Omit<EmailSettings, 'updated_at' | 'auth_method'> {
+  password?: string
 }
 
 export interface TaskInput {
@@ -234,6 +242,33 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(subscription),
       }),
+  },
+  email: {
+    /** إعدادات بريد المستخدم الحالي — كلمة المرور لا تُعاد أبداً */
+    settings: () =>
+      request<{
+        configured: boolean
+        /** «تسجيل الدخول عبر Google» مفعّل على الخادم؟ */
+        google_available: boolean
+        settings: EmailSettings | null
+      }>('/email/settings/'),
+    saveSettings: (data: EmailSettingsInput) =>
+      request<{ configured: boolean; settings: EmailSettings }>('/email/settings/', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    /** فصل الحساب المرتبط (يلغي توكن Google ويحذف الإعدادات) */
+    disconnect: () =>
+      request<void>('/email/oauth/disconnect/', { method: 'POST', body: '{}' }),
+    /** اختبار المصادقة على IMAP وSMTP بالإعدادات المحفوظة */
+    test: () =>
+      request<{ imap_ok: boolean; imap_error: string; smtp_ok: boolean; smtp_error: string }>(
+        '/email/test/',
+        { method: 'POST', body: '{}' },
+      ),
+    /** رسائل الوارد التي يحمل موضوعها وسم المشروع */
+    forProject: (projectId: number) =>
+      request<{ tag: string; messages: EmailMessage[] }>(`/emails/?project=${projectId}`),
   },
   notifications: {
     /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */

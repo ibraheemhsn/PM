@@ -10,6 +10,7 @@ import { ArchivePage } from './components/projects/ArchivePage'
 import { AttachmentsPage } from './components/projects/AttachmentsPage'
 import { ProjectPage } from './components/projects/ProjectPage'
 import { ProjectsPage } from './components/projects/ProjectsPage'
+import { EmailSettingsPage } from './components/settings/EmailSettingsPage'
 import { TrashPage } from './components/projects/TrashPage'
 import { AllTasksPage } from './components/tasks/AllTasksPage'
 import { useMe } from './hooks/useAuth'
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/attachments" element={<AttachmentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/email-settings" element={<EmailSettingsPage />} />
         <Route
           path="/employees"
           element={me.is_manager ? <EmployeesPage /> : <Navigate to="/tasks" replace />}

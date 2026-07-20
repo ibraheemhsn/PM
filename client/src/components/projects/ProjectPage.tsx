@@ -21,6 +21,7 @@ import { TaskFormModal } from '../tasks/TaskFormModal'
 import { Lightbox } from '../ui/Lightbox'
 import { Tooltip } from '../ui/Tooltip'
 import { AttachmentsSection } from './AttachmentsSection'
+import { EmailsSection } from './EmailsSection'
 import { ProjectFormModal } from './ProjectFormModal'
 import { UpdatesSection } from './UpdatesSection'
 
@@ -354,6 +355,9 @@ export function ProjectPage() {
 
       {/* المرفقات: صور وPDF وملفات نصية */}
       <AttachmentsSection projectId={project.id} />
+
+      {/* الإيميلات: رسائل الوارد التي يحمل موضوعها وسم المشروع */}
+      <EmailsSection project={project} />
 
       {editingProject && (
         <ProjectFormModal project={project} onClose={() => setEditingProject(false)} />

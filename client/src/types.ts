@@ -40,6 +40,8 @@ export interface Project {
   incoming_link: string
   /** محادثة الذكاء الاصطناعي الخاصة بالمشروع (ChatGPT/Claude/Gemini…) */
   ai_link: string
+  /** وسم المشروع: يُدرج في موضوع الإيميلات المرتبطة — أساس قسم «الإيميلات» */
+  email_tag: string
   /** تعديل مقترح بانتظار مراجعة المدير — النسخة المعتمدة في details لا تتغير إلا بالاعتماد */
   pending_details: string
   has_pending_details: boolean
@@ -221,6 +223,26 @@ export interface ActivityEntry {
   actor: UserBrief | null
   message: string
   created_at: string
+}
+
+/** إعدادات ربط البريد الشخصي للمستخدم (IMAP للاستلام + SMTP للإرسال) */
+export interface EmailSettings {
+  email_address: string
+  /** GOOGLE = مرتبط عبر «تسجيل الدخول عبر Google»، PASSWORD = يدوي بكلمة مرور تطبيق */
+  auth_method: 'PASSWORD' | 'GOOGLE'
+  imap_host: string
+  imap_port: number
+  smtp_host: string
+  smtp_port: number
+  updated_at: string
+}
+
+/** رسالة بريد مرتبطة بمشروع (موضوعها يحمل وسم المشروع) */
+export interface EmailMessage {
+  id: number
+  subject: string
+  sender: string
+  date: string | null
 }
 
 /** إشعار داخل التطبيق — يُعرض في جرس الشريط الجانبي وكإشعار متصفح مع صوت */

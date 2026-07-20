@@ -50,6 +50,9 @@ class Project(models.Model):
     accounts_link = models.CharField("رابط ملف الحسابات", max_length=500, blank=True, default="")
     # مجلد Google Drive لصور الكتب الواردة
     incoming_link = models.CharField("رابط مجلد الواردة", max_length=500, blank=True, default="")
+    # وسم المشروع: كلمة مميزة تُدرج في موضوع الإيميلات المرتبطة بالمشروع
+    # (مثل ‎[PRJ-05]‎) — قسم «الإيميلات» يجلب الرسائل التي يحمل موضوعها الوسم
+    email_tag = models.CharField("وسم المشروع", max_length=100, blank=True, default="")
     # محادثة الذكاء الاصطناعي الخاصة بالمشروع (ChatGPT/Claude/Gemini…)
     ai_link = models.CharField("رابط الذكاء الاصطناعي", max_length=500, blank=True, default="")
 
@@ -269,6 +272,45 @@ class TaskSeen(models.Model):
 
     def __str__(self):
         return f"اطّلع {self.user_id} على مهمة {self.task_id}"
+
+
+class EmailAccount(models.Model):
+    """إعدادات ربط البريد الشخصي للمستخدم (IMAP للاستلام + SMTP للإرسال).
+
+    طريقتان: «تسجيل الدخول عبر Google» (OAuth — الموصى بها، توكنات تتجدد
+    تلقائياً)، أو يدوياً بكلمة مرور تطبيق (App Password) مع التحقق بخطوتين."""
+
+    class AuthMethod(models.TextChoices):
+        PASSWORD = "PASSWORD", "كلمة مرور تطبيق"
+        GOOGLE = "GOOGLE", "حساب Google (OAuth)"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="email_account", verbose_name="المستخدم",
+    )
+    email_address = models.EmailField("عنوان البريد الإلكتروني")
+    auth_method = models.CharField(
+        "طريقة الربط", max_length=10,
+        choices=AuthMethod.choices, default=AuthMethod.PASSWORD,
+    )
+    # كلمة مرور التطبيق (للطريقة اليدوية) — تُكتب فقط ولا تُعاد للواجهة أبداً
+    password = models.CharField("كلمة المرور", max_length=255, blank=True, default="")
+    # توكنات Google OAuth — refresh دائم وaccess مؤقت يتجدد تلقائياً
+    google_refresh_token = models.TextField("Google refresh token", blank=True, default="")
+    google_access_token = models.TextField("Google access token", blank=True, default="")
+    google_token_expiry = models.DateTimeField("انتهاء التوكن", null=True, blank=True)
+    imap_host = models.CharField("خادم الاستلام IMAP", max_length=255, default="imap.gmail.com")
+    imap_port = models.PositiveIntegerField("منفذ IMAP", default=993)
+    smtp_host = models.CharField("خادم الإرسال SMTP", max_length=255, default="smtp.gmail.com")
+    smtp_port = models.PositiveIntegerField("منفذ SMTP", default=587)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "حساب بريد"
+        verbose_name_plural = "حسابات البريد"
+
+    def __str__(self):
+        return f"{self.user_id}: {self.email_address}"
 
 
 class Notification(models.Model):

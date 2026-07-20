@@ -1,6 +1,6 @@
 import {
-  Archive, ArrowDownUp, History, LayoutDashboard, ListTodo, LogOut, MoreVertical,
-  Paperclip, Pencil, Plus, Search, Sun, Trash2, Users,
+  Archive, ArrowDownUp, History, LayoutDashboard, ListTodo, LogOut, Mail,
+  MoreVertical, Paperclip, Pencil, Plus, Search, Sun, Trash2, Users,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NavLink, useMatch, useNavigate } from 'react-router-dom'
@@ -236,6 +236,15 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
               <NavLink to="/activity" onClick={() => setToolsOpen(false)} className={toolsLinkClass}>
                 <History size={16} />
                 سجل النشاطات
+              </NavLink>
+              {/* إعدادات ربط البريد الشخصي — لكل مستخدم إعداداته */}
+              <NavLink
+                to="/email-settings"
+                onClick={() => setToolsOpen(false)}
+                className={toolsLinkClass}
+              >
+                <Mail size={16} />
+                إعدادات البريد
               </NavLink>
               {/* ترتيب المشاريع المخصص — متاح للمدير والموظف على السواء */}
               <button

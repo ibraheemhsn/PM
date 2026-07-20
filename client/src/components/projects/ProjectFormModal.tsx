@@ -22,6 +22,7 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
   const [accountsLink, setAccountsLink] = useState(project?.accounts_link ?? '')
   const [incomingLink, setIncomingLink] = useState(project?.incoming_link ?? '')
   const [aiLink, setAiLink] = useState(project?.ai_link ?? '')
+  const [emailTag, setEmailTag] = useState(project?.email_tag ?? '')
 
   const saving = create.isPending || update.isPending
 
@@ -37,6 +38,7 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
       accounts_link: accountsLink.trim(),
       incoming_link: incomingLink.trim(),
       ai_link: aiLink.trim(),
+      email_tag: emailTag.trim(),
     }
 
     if (project) {
@@ -111,6 +113,24 @@ export function ProjectFormModal({ project, onClose }: ProjectFormModalProps) {
             onChange={(e) => setAiLink(e.target.value)}
             dir="auto"
             placeholder="رابط الذكاء الاصطناعي — محادثة المشروع (ChatGPT/Claude…) 🤖"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
+          />
+        </div>
+
+        {/* وسم المشروع: يُدرج في موضوع الإيميلات المرتبطة — قسم «الإيميلات»
+            في صفحة المشروع يعرض الرسائل التي يحمل موضوعها هذا الوسم */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">
+            وسم المشروع{' '}
+            <span className="text-[11px] font-normal text-slate-400">
+              (الإيميلات التي يحمل موضوعها الوسم تظهر في قسم «الإيميلات»)
+            </span>
+          </label>
+          <input
+            value={emailTag}
+            onChange={(e) => setEmailTag(e.target.value)}
+            dir="auto"
+            placeholder="مثال: PRJ-05 أو محطات-البيئة 🏷️"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none placeholder:text-slate-300 focus:border-blue-400"
           />
         </div>
