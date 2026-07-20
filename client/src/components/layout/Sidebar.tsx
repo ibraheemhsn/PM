@@ -84,6 +84,9 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
         </div>
       </div>
 
+      {/* على الجوال: روابط التنقل تتحرك مع قائمة المشاريع (غير مثبتة)؛
+          وعلى الشاشات الكبيرة تبقى ثابتة وتتمرر قائمة المشاريع وحدها */}
+      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto lg:flex lg:flex-col lg:overflow-visible">
       {/* التنقل الرئيسي */}
       <nav className="space-y-0.5 px-3 pt-3">
         <NavLink to="/my-day" className={navLinkClass}>
@@ -122,7 +125,7 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
         )}
       </div>
 
-      <ul className="scrollbar-slim mt-2 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
+      <ul className="mt-2 space-y-0.5 px-3 pb-4 lg:scrollbar-slim lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {isLoading && <li className="px-3 py-2 text-sm text-slate-500">جارٍ التحميل…</li>}
         {!isLoading && projects.length === 0 && (
           <li className="px-3 py-2 text-sm text-slate-500">
@@ -185,6 +188,7 @@ export function Sidebar({ onOpenSearch }: SidebarProps) {
           </li>
         ))}
       </ul>
+      </div>
 
       {/* المستخدم الحالي + إدارة الموظفين + قائمة الأدوات + تسجيل الخروج */}
       <div className="relative flex items-center gap-2.5 border-t border-slate-800 px-4 py-3">
