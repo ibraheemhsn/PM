@@ -85,17 +85,28 @@ export function ProjectPage() {
   // نسبة تقدّم السحب نحو العتبة (0→1) — لتلاشي/ظهور مؤشر الهدف
   const progress = Math.min(Math.abs(pull) / threshold, 1)
 
-  // التمرير إلى العنصر المستهدف القادم من إشعار، ثم تنظيف الرابط بعد انتهاء الوميض
+  // التمرير إلى العنصر المستهدف القادم من إشعار أو رابط شارة المشروع،
+  // ثم تنظيف الرابط بعد انتهاء الوميض.
+  // بمحاولات متكررة: الهدف (خصوصاً التحديثات) قد يُرسم بعد لحظات من فتح
+  // الصفحة — وبدونها لا يحدث تمرير ويبقى العنصر مخفياً أسفل الشاشة
   useEffect(() => {
     if (!focus || isLoading || tasksLoading) return
     const elementId =
       focus === 'details' ? 'project-details' : focus === 'updates' ? 'project-updates' : focus
-    const scrollTimer = setTimeout(() => {
-      document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    let attempts = 0
+    const scrollTimer = setInterval(() => {
+      const el = document.getElementById(elementId)
+      attempts += 1
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' }) // منتصف الشاشة
+        clearInterval(scrollTimer)
+      } else if (attempts >= 20) {
+        clearInterval(scrollTimer) // الهدف حُذف أو لم يعد موجوداً — توقف
+      }
     }, 150)
     const cleanTimer = setTimeout(() => setSearchParams({}, { replace: true }), 4000)
     return () => {
-      clearTimeout(scrollTimer)
+      clearInterval(scrollTimer)
       clearTimeout(cleanTimer)
     }
   }, [focus, isLoading, tasksLoading, setSearchParams])
@@ -426,8 +437,11 @@ function DetailsSection({
   const { update, proposeDetails, approveDetails, rejectDetails } = useProjectMutations()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-  // الوصول من إشعار «تحديث مشروع» يفتح القسم تلقائياً ليظهر الهدف
-  const [expanded, setExpanded] = useState(focus === 'updates')
+  // الوصول من إشعار «تحديث مشروع» أو رابط يستهدف تحديثاً مفرداً (update-N)
+  // يفتح القسم تلقائياً ليظهر الهدف
+  const [expanded, setExpanded] = useState(
+    focus === 'updates' || !!focus?.startsWith('update-'),
+  )
   const [viewingPending, setViewingPending] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
 

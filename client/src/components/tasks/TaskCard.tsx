@@ -173,10 +173,13 @@ export function TaskCard({
             </span>
           )}
           {showProject && (
+            /* على الجوال: الشارة غير قابلة للنقر — النقرة تمر لجسم البطاقة
+               فتفتح نافذة المهمة (تجنباً للنقر الخاطئ على العناصر الصغيرة) */
             <Link
-              to={`/projects/${task.project}`}
+              // focus يمرّر صفحة المشروع إلى المهمة ويميّزها بوميض ثلاثي
+              to={`/projects/${task.project}?focus=task-${task.id}`}
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
+              className="pointer-events-none flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100 lg:pointer-events-auto"
             >
               <span
                 className="h-2 w-2 rounded-full"
@@ -205,14 +208,15 @@ export function TaskCard({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        {/* أزرار المدير المخصصة: اعتماد المقترحة وإغلاق التي بانتظار المراجعة */}
+        {/* أزرار المدير المخصصة: اعتماد المقترحة وإغلاق التي بانتظار المراجعة
+            — مخفية على الجوال (الإجراء من داخل نافذة المهمة) */}
         {canManage && task.status === 'SUGGESTED' && (
           <button
             onClick={(e) => {
               e.stopPropagation()
               changeStatus('OPEN')
             }}
-            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            className="hidden items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 lg:flex"
             title="اعتماد المهمة المقترحة — تصبح «مفتوحة»"
           >
             <Check size={13} />
@@ -225,19 +229,24 @@ export function TaskCard({
               e.stopPropagation()
               changeStatus('DONE')
             }}
-            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            className="hidden items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 lg:flex"
             title="إغلاق المهمة نهائياً — تصبح «منجزة»"
           >
             <CheckCheck size={13} />
             إغلاق المهمة
           </button>
         )}
+        {/* أيقونة التعليقات: على الجوال تختفي إن لم توجد تعليقات، والنقرة
+            تمر لجسم البطاقة (النافذة تعرض التعليقات داخلها) */}
         <button
           onClick={(e) => {
             e.stopPropagation()
             onOpenComments()
           }}
-          className="relative flex items-center gap-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+          className={cn(
+            'pointer-events-none relative flex items-center gap-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 lg:pointer-events-auto',
+            task.comments_count === 0 && 'hidden lg:flex',
+          )}
           title={task.has_unread_comments ? 'تعليقات غير مقروءة' : 'التعليقات'}
         >
           <MessageCircle size={15} />
@@ -247,13 +256,14 @@ export function TaskCard({
             <span className="absolute end-0.5 top-0.5 h-2 w-2 rounded-full bg-red-500" />
           )}
         </button>
+        {/* التعديل والحذف: مخفيان دائماً على الجوال — الحذف من داخل النافذة */}
         {canManage && onEdit && (
           <button
             onClick={(e) => {
               e.stopPropagation()
               onEdit()
             }}
-            className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-blue-600 group-hover:opacity-100"
+            className="hidden rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-blue-600 group-hover:opacity-100 lg:block"
             title="تعديل المهمة"
           >
             <Pencil size={15} />
@@ -265,7 +275,7 @@ export function TaskCard({
               e.stopPropagation()
               onDelete()
             }}
-            className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-red-600 group-hover:opacity-100"
+            className="hidden rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-red-600 group-hover:opacity-100 lg:block"
             title="حذف المهمة"
           >
             <Trash2 size={15} />

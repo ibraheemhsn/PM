@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  CalendarDays, FileText, Flag, Paperclip, Repeat, SlidersHorizontal, Tag, X,
+  CalendarDays, FileText, Flag, FolderKanban, Paperclip, Repeat,
+  SlidersHorizontal, Tag, Trash2, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useProjects } from '../../hooks/useProjects'
 import { useTags, useTaskMutations } from '../../hooks/useTasks'
@@ -48,7 +50,7 @@ export function TaskFormModal({
   const { data: projects = [] } = useProjects()
   const { data: allTags = [] } = useTags()
   const { data: employees = [] } = useUsers(isManager) // endpoint خاص بالمدير
-  const { create, update } = useTaskMutations()
+  const { create, update, remove } = useTaskMutations()
 
   const [title, setTitle] = useState(task?.title ?? '')
   // عند التعديل: العنوان للقراءة فقط حتى يُنقر عليه — يمنع التعديل غير المقصود.
@@ -159,6 +161,14 @@ export function TaskFormModal({
     )
   }
 
+  // حذف المهمة من داخل النافذة — بديل أيقونة الحذف المخفية على الجوال
+  const handleDeleteTask = () => {
+    if (!task) return
+    if (!confirm(`نقل مهمة «${task.title}» إلى المحذوفات؟ يمكنك استعادتها أو حذفها نهائياً من هناك.`))
+      return
+    remove.mutate(task.id, { onSuccess: onClose })
+  }
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     const trimmed = title.trim()
@@ -218,7 +228,21 @@ export function TaskFormModal({
       <div className={enterClass(enterDir)}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">عنوان المهمة</label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-slate-600">عنوان المهمة</label>
+            {/* رابط مباشر لصفحة المشروع (الجوال) — الوصول يميّز المهمة بوميض ثلاثي
+                كما عند القدوم من إشعار */}
+            {task && selectedProject && (
+              <Link
+                to={`/projects/${selectedProject.id}?focus=task-${task.id}`}
+                onClick={onClose}
+                className="flex shrink-0 items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 lg:hidden"
+              >
+                <FolderKanban size={14} />
+                الانتقال إلى المشروع
+              </Link>
+            )}
+          </div>
           {/* متعدد الأسطر للعناوين الطويلة — Enter يحفظ، وShift+Enter لا يضيف سطراً
               لأن العنوان نص واحد يلتف تلقائياً */}
           {titleEditable ? (
@@ -334,6 +358,7 @@ export function TaskFormModal({
             {advancedOpen ? 'إخفاء الخيارات' : 'خيارات متقدمة'}
           </span>
         </div>
+
 
         {/* الحقول الكاملة — تظهر عند «خيارات متقدمة» */}
         {advancedOpen && (
@@ -595,27 +620,43 @@ export function TaskFormModal({
         </>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
-          >
-            إلغاء
-          </button>
-          <button
-            type="submit"
-            disabled={!title.trim() || !projectId || saving || uploadingAttach}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving || uploadingAttach
-              ? 'جارٍ الحفظ…'
-              : task
-                ? 'حفظ التعديلات'
-                : isManager
-                  ? 'إضافة المهمة'
-                  : 'إرسال الاقتراح (تُعرض على المدير للاعتماد)'}
-          </button>
+        <div className="flex items-center justify-between gap-2 pt-2">
+          {/* حذف المهمة (للمدير، عند التعديل) — بديل أيقونة الحذف المخفية على الجوال */}
+          {task && isManager ? (
+            <button
+              type="button"
+              onClick={handleDeleteTask}
+              disabled={remove.isPending}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              <Trash2 size={15} />
+              {remove.isPending ? 'جارٍ الحذف…' : 'حذف المهمة'}
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={!title.trim() || !projectId || saving || uploadingAttach}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving || uploadingAttach
+                ? 'جارٍ الحفظ…'
+                : task
+                  ? 'حفظ التعديلات'
+                  : isManager
+                    ? 'إضافة المهمة'
+                    : 'إرسال الاقتراح (تُعرض على المدير للاعتماد)'}
+            </button>
+          </div>
         </div>
       </form>
 

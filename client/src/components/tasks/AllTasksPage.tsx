@@ -637,37 +637,49 @@ export function AllTasksPage() {
   )
 }
 
-/** بطاقة تحديث مشروع داخل الخلاصة الموحدة — النقر يفتح نافذة التعديل */
+/** بطاقة تحديث مشروع داخل الخلاصة الموحدة — بنفس بنية بطاقة المهمة:
+ *  أيقونة الكاتب في اليمين، نص التحديث بخط واضح أعلى، ثم سطر البارامترات
+ *  (شارة «تحديث» أولاً ثم المشروع والتاريخ). النقر يفتح نافذة التعديل */
 function UpdateFeedCard({ update, onOpen }: { update: ProjectUpdate; onOpen: () => void }) {
   return (
     <div
       onClick={onOpen}
       className={cn(
-        'flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm transition hover:shadow',
+        'group flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 border-s-4 px-4 py-3 shadow-sm transition hover:shadow',
         // غير مقروء — يصبح مقروءاً عند فتح صفحة المشروع
         update.is_unread ? 'bg-yellow-50' : 'bg-white',
       )}
       style={{ borderInlineStartColor: update.project_color }}
     >
+      {/* أيقونة كاتب التحديث — بموضع أيقونة الحالة في بطاقة المهمة */}
       {update.author ? (
-        <Avatar user={update.author} size={30} />
+        <Avatar user={update.author} size={26} className="shrink-0" />
       ) : (
-        <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500">
+        <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500">
           ؟
         </span>
       )}
+
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+        {/* نص التحديث بخط واضح — كعنوان المهمة */}
+        <p
+          className={cn(
+            'line-clamp-2 text-sm leading-snug text-slate-800',
+            update.is_unread ? 'font-bold' : 'font-medium',
+          )}
+        >
+          {update.body}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
           <span className="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-600">
             تحديث
           </span>
-          {update.author && (
-            <span className="text-slate-500">{displayName(update.author)}</span>
-          )}
+          {/* على الجوال: الشارة غير قابلة للنقر — النقرة تفتح نافذة التحديث */}
           <Link
-            to={`/projects/${update.project}`}
+            // focus يمرّر صفحة المشروع إلى هذا التحديث ويميّزه بوميض ثلاثي
+            to={`/projects/${update.project}?focus=update-${update.id}`}
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
+            className="pointer-events-none flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 hover:bg-slate-100 lg:pointer-events-auto"
           >
             <span
               className="h-2 w-2 rounded-full"
@@ -677,14 +689,6 @@ function UpdateFeedCard({ update, onOpen }: { update: ProjectUpdate; onOpen: () 
           </Link>
           <span>{formatDate(update.created_at)}</span>
         </div>
-        <p
-          className={cn(
-            'mt-1 whitespace-pre-wrap text-sm text-slate-700',
-            update.is_unread && 'font-bold',
-          )}
-        >
-          {update.body}
-        </p>
       </div>
     </div>
   )

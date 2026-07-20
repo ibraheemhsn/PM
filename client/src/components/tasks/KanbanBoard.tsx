@@ -226,7 +226,7 @@ function KanbanCard({
           </span>
         )}
         <Link
-          to={`/projects/${task.project}`}
+          to={`/projects/${task.project}?focus=task-${task.id}`}
           onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1 rounded-full bg-slate-50 px-1.5 py-0.5 font-medium text-slate-500 hover:bg-slate-100"
         >

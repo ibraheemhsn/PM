@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { FileText, Paperclip, Pencil, Plus, Send, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
 import { useProjectUpdateMutations, useProjectUpdates } from '../../hooks/useProjects'
 import { api } from '../../lib/api'
@@ -9,6 +10,7 @@ import { displayName, type ProjectUpdate, type UpdateAttachment } from '../../ty
 import { Avatar } from '../ui/Avatar'
 import { Lightbox } from '../ui/Lightbox'
 import { Modal } from '../ui/Modal'
+import { UpdateEditModal } from './UpdateEditModal'
 
 const ATTACH_ACCEPT = 'image/*,.pdf,.txt,.md,.csv'
 
@@ -23,6 +25,9 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
   const { data: updates = [], isLoading } = useProjectUpdates(projectId)
   const { create, update, remove } = useProjectUpdateMutations(projectId)
   const queryClient = useQueryClient()
+  // معامل focus (مثل "update-7") من روابط الخلاصة/الإشعارات — يميّز التحديث بوميض
+  const [searchParams] = useSearchParams()
+  const focus = searchParams.get('focus')
 
   // جلب تحديثات المشروع يعلّمها مقروءةً على الخادم — حدّث النقطة الحمراء
   // في الشريط الجانبي، ويبقى التمييز الأصفر ظاهراً حتى مغادرة الصفحة
@@ -35,6 +40,8 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
   const [body, setBody] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editBody, setEditBody] = useState('')
+  // الجوال: النقر في أي مكان على بطاقة التحديث يفتح نافذة تعديله
+  const [modalUpdate, setModalUpdate] = useState<ProjectUpdate | null>(null)
 
   // مرفق اختياري للتحديث — يُرفع بعد إنشاء التحديث ويظهر في قسم المرفقات أيضاً
   const [attachFile, setAttachFile] = useState<File | null>(null)
@@ -129,7 +136,7 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
         )}
 
         {updates.map((item) => (
-          <div key={item.id} className="group flex gap-2">
+          <div key={item.id} id={`update-${item.id}`} className="group flex gap-2">
             {item.author ? (
               <Avatar user={item.author} size={30} />
             ) : (
@@ -139,10 +146,16 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
             )}
 
             <div
+              onClick={() => {
+                // الجوال فقط: النقر في أي مكان يفتح نافذة التحديث
+                if (window.innerWidth < 1024 && editingId !== item.id) setModalUpdate(item)
+              }}
               className={cn(
-                'min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2',
+                'min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 max-lg:cursor-pointer',
                 // تحديث لم يقرأه المستخدم بعد — خلفية صفراء فاتحة
                 item.is_unread ? 'bg-yellow-50' : 'bg-white',
+                // القدوم من رابط يستهدف هذا التحديث — وميض تمييز ثلاثي
+                focus === `update-${item.id}` && 'focus-flash',
               )}
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -155,7 +168,8 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
                   {wasEdited(item) && ' · (معدَّل)'}
                 </span>
                 {canModify(item) && editingId !== item.id && (
-                  <span className="ms-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  /* أيقونتا التعديل والحذف مخفيتان على الجوال — النافذة تتولى ذلك */
+                  <span className="ms-auto hidden items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 lg:flex">
                     <button
                       onClick={() => startEdit(item)}
                       className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
@@ -224,10 +238,12 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
                   {item.attachments.map((att) => (
                     <span key={att.id} className="relative">
                       {isImageFile(att.file_name) ? (
+                        /* على الجوال تمر النقرة لجسم البطاقة (النافذة تعرض المرفقات) */
                         <button
                           type="button"
                           onClick={() => setLightbox(att.file)}
                           title={att.file_name}
+                          className="max-lg:pointer-events-none"
                         >
                           <img
                             src={att.thumbnail ?? att.file}
@@ -242,7 +258,7 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
                           href={att.file}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600 ring-1 ring-slate-200 hover:text-blue-600"
+                          className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600 ring-1 ring-slate-200 hover:text-blue-600 max-lg:pointer-events-none"
                         >
                           <FileText size={14} />
                           <span dir="ltr" className="max-w-40 truncate">{att.file_name}</span>
@@ -293,6 +309,15 @@ export function UpdatesSection({ projectId }: { projectId: number }) {
       />
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
+
+      {/* نافذة تعديل التحديث — تُفتح بالنقر على البطاقة (الجوال) */}
+      {modalUpdate && (
+        <UpdateEditModal
+          update={modalUpdate}
+          canEdit={canModify(modalUpdate)}
+          onClose={() => setModalUpdate(null)}
+        />
+      )}
 
       {/* إضافة تحديث جديد — نافذة منبثقة تُفتح من زر الترويسة */}
       {adding && (

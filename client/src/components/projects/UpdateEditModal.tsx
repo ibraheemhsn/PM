@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { FileText, Paperclip, Trash2, X } from 'lucide-react'
+import { FileText, FolderKanban, Paperclip, Trash2, X } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useProjectUpdateMutations } from '../../hooks/useProjects'
 import { api } from '../../lib/api'
 import { cn, formatFileSize, isImageFile } from '../../lib/utils'
@@ -91,6 +92,19 @@ export function UpdateEditModal({
     <Modal title={canEdit ? 'تعديل التحديث' : 'التحديث'} onClose={onClose} bodyRef={bodyRef}>
       {hints}
       <div className={enterClass(enterDir)}>
+      {/* عنوان الحقل + رابط مباشر لصفحة المشروع (الجوال) — الوصول يميّز
+          هذا التحديث بوميض ثلاثي كما في نافذة المهمة */}
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <label className="block text-sm font-medium text-slate-600">نص التحديث</label>
+        <Link
+          to={`/projects/${update.project}?focus=update-${update.id}`}
+          onClick={onClose}
+          className="flex shrink-0 items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 lg:hidden"
+        >
+          <FolderKanban size={14} />
+          الانتقال إلى المشروع
+        </Link>
+      </div>
       {editingBody && canEdit ? (
         <textarea
           autoFocus
