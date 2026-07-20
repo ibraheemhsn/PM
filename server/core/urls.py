@@ -4,10 +4,10 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivityLogViewSet, AttachmentViewSet, DetailsImageUploadView,
     EmailOAuthCallbackView, EmailOAuthDisconnectView, EmailOAuthStartView,
-    EmailSettingsView, EmailTestView, GlobalSearchView, LoginView, LogoutView,
-    MailboxView, MeView, NotificationViewSet, ProjectEmailsView, ProjectOrderView,
-    ProjectUpdateViewSet, ProjectViewSet, PushKeyView, PushSubscribeView,
-    TagViewSet, TaskViewSet, UserViewSet,
+    EmailMessageViewSet, EmailSettingsView, EmailTestView, GlobalSearchView,
+    LoginView, LogoutView, MeView, NotificationViewSet, ProjectEmailsView,
+    ProjectOrderView, ProjectUpdateViewSet, ProjectViewSet, PushKeyView,
+    PushSubscribeView, TagViewSet, TaskViewSet, UserViewSet,
 )
 
 router = DefaultRouter()
@@ -19,6 +19,7 @@ router.register("tags", TagViewSet, basename="tag")
 router.register("users", UserViewSet, basename="user")
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("activity", ActivityLogViewSet, basename="activity")
+router.register("mailbox", EmailMessageViewSet, basename="mailbox")
 
 urlpatterns = [
     path("auth/me/", MeView.as_view(), name="auth-me"),
@@ -35,6 +36,5 @@ urlpatterns = [
     path("email/oauth/callback/", EmailOAuthCallbackView.as_view(), name="email-oauth-callback"),
     path("email/oauth/disconnect/", EmailOAuthDisconnectView.as_view(), name="email-oauth-disconnect"),
     path("emails/", ProjectEmailsView.as_view(), name="project-emails"),
-    path("mailbox/", MailboxView.as_view(), name="mailbox"),
     path("", include(router.urls)),
 ]

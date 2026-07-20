@@ -266,17 +266,24 @@ export const api = {
         '/email/test/',
         { method: 'POST', body: '{}' },
       ),
-    /** رسائل الوارد التي يحمل موضوعها وسم المشروع */
+    /** رسائل المشروع المخزَّنة (الوارد) التي يحمل موضوعها وسمه — من قاعدة البيانات */
     forProject: (projectId: number) =>
       request<{ tag: string; messages: EmailMessage[] }>(`/emails/?project=${projectId}`),
-    /** صندوق البريد الموحّد لصفحة «البريد»: الوارد/الصادر مع ترشيح
-     *  اختياري بمشروع (وسمه) وبحث نصي على الخادم */
+    /** قائمة صندوق البريد من قاعدة البيانات (فورية): الوارد/الصادر + مشروع + بحث */
     mailbox: (params: { folder: 'received' | 'sent'; project?: number | null; q?: string }) => {
       const qs = new URLSearchParams({ folder: params.folder })
       if (params.project) qs.set('project', String(params.project))
       if (params.q?.trim()) qs.set('q', params.q.trim())
-      return request<{ folder: string; tag: string; messages: EmailMessage[] }>(`/mailbox/?${qs}`)
+      return request<EmailMessage[]>(`/mailbox/?${qs}`)
     },
+    /** تفاصيل رسالة واحدة مع نصّها الكامل — لنافذة القراءة */
+    message: (id: number) => request<EmailMessage>(`/mailbox/${id}/`),
+    /** مزامنة الجديد من خادم البريد إلى قاعدة البيانات (تزايدياً) */
+    sync: (folder?: 'received' | 'sent') =>
+      request<{ results: Record<string, unknown> }>('/mailbox/sync/', {
+        method: 'POST',
+        body: JSON.stringify(folder ? { folder } : {}),
+      }),
   },
   notifications: {
     /** بدون limit: آخر 30 (فحص الجرس الدوري)؛ ومع limit: لصفحة الإشعارات الكاملة */

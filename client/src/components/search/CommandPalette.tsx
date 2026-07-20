@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Folder, History, Megaphone, MessageSquare, Paperclip, Search, X } from 'lucide-react'
+import { Folder, History, Mail, Megaphone, MessageSquare, Paperclip, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMe } from '../../hooks/useAuth'
@@ -18,7 +18,7 @@ type SearchResult = RecentSearchItem
 
 const GROUP_LABELS = {
   project: 'المشاريع', task: 'المهام', attachment: 'المرفقات',
-  comment: 'التعليقات', update: 'التحديثات',
+  comment: 'التعليقات', update: 'التحديثات', email: 'البريد',
 } as const
 
 /** مقتطف نصي حول موضع التطابق — لعرض سياق النتيجة */
@@ -160,7 +160,21 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
       }
     })
 
-    return [...projectHits, ...taskHits, ...attachmentHits, ...commentHits, ...updateHits]
+    const emailHits: SearchResult[] = (serverResults?.emails ?? []).map((m) => ({
+      type: 'email' as const,
+      key: `email-${m.id}`,
+      title: m.subject || '(بلا موضوع)',
+      subtitle: m.project_title
+        ? `${m.folder === 'sent' ? 'صادر' : 'وارد'} — ${m.project_title}`
+        : m.preview || m.sender,
+      color: m.project_color || '#64748b',
+      to: `/mail?open=${m.id}`,
+    }))
+
+    return [
+      ...projectHits, ...taskHits, ...attachmentHits,
+      ...commentHits, ...updateHits, ...emailHits,
+    ]
   }, [query, debouncedQuery, projects, tasks, attachments, serverResults])
 
   // أعد المؤشر لأول نتيجة كلما تغيّر نص البحث
@@ -279,6 +293,8 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
                     <MessageSquare size={17} style={{ color: result.color }} className="shrink-0" />
                   ) : result.type === 'update' ? (
                     <Megaphone size={17} style={{ color: result.color }} className="shrink-0" />
+                  ) : result.type === 'email' ? (
+                    <Mail size={17} style={{ color: result.color }} className="shrink-0" />
                   ) : (
                     <StatusIcon status={result.status!} size={17} className="shrink-0" />
                   )}

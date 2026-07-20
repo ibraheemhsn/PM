@@ -1,6 +1,6 @@
 import {
   Archive, ArchiveRestore, Bot, Check, ChevronDown, ChevronUp, ChevronsDown,
-  ChevronsUp, Eye, FileOutput, FileSpreadsheet, Folder, FolderDown, Pencil,
+  ChevronsUp, Eye, FileOutput, FileSpreadsheet, Folder, FolderDown, Mail, Pencil,
   Plus, Save, Trash2, Undo2,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -220,6 +220,16 @@ export function ProjectPage() {
                 link: project.ai_link,
                 label: 'محادثة الذكاء الاصطناعي',
                 icon: <Bot size={21} className="text-fuchsia-600" />,
+              },
+              {
+                // رابط بحث Gmail عن رسائل المشروع بوسمه — يظهر فقط عند تعيين الوسم
+                link: project.email_tag.trim()
+                  ? `https://mail.google.com/mail/u/0/?tab=rm&ogbl#search/subject%3A${encodeURIComponent(
+                      project.email_tag.trim().toLowerCase(),
+                    )}`
+                  : '',
+                label: 'رابط البريد (بحث Gmail بوسم المشروع)',
+                icon: <Mail size={21} className="text-red-600" />,
               },
             ] as const
           )

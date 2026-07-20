@@ -163,6 +163,8 @@ export interface GlobalSearchResults {
   attachments: Attachment[]
   comments: SearchComment[]
   updates: ProjectUpdate[]
+  /** رسائل بريد المستخدم الحالي المطابقة (الموضوع/النص/المرسِل) */
+  emails: EmailMessage[]
 }
 
 /** تصنيفات المرفقات — أساس الفلترة السريعة في أقسام المرفقات */
@@ -237,16 +239,24 @@ export interface EmailSettings {
   updated_at: string
 }
 
-/** رسالة بريد مرتبطة بمشروع (موضوعها يحمل وسم المشروع) */
+/** رسالة بريد مُزامَنة من صندوق المستخدم إلى قاعدة البيانات — تُقرأ فوراً */
 export interface EmailMessage {
   id: number
   subject: string
   sender: string
-  /** المستلِم — يُعرض في مجلد الصادر (صفحة البريد الموحّدة) */
-  to?: string
+  /** المستلِم — يُعرض في مجلد الصادر */
+  to: string
   date: string | null
-  /** المجلد الذي أتت منه — «الوارد» أو «الصادر» */
-  folder?: 'received' | 'sent'
+  folder: 'received' | 'sent'
+  /** المشروع المطابق (موضوعها يحمل وسمه) — null إن لم يطابق */
+  project: number | null
+  project_title: string | null
+  project_color: string | null
+  /** مقتطف من نص الرسالة لعرض القائمة */
+  preview: string
+  /** النص الكامل — يصل فقط عند فتح الرسالة (تفاصيل) */
+  body?: string
+  message_id?: string
 }
 
 /** إشعار داخل التطبيق — يُعرض في جرس الشريط الجانبي وكإشعار متصفح مع صوت */

@@ -28,20 +28,21 @@ from rest_framework.views import APIView
 from django.conf import settings
 
 from . import google_oauth
-from .emails import EmailFetchError, fetch_mailbox, fetch_project_emails, test_connection
+from .emails import EmailFetchError, sync_account, test_connection
 from .models import (
-    ActivityLog, Attachment, EmailAccount, Notification, Project, ProjectUpdate,
-    ProjectUpdateRead, PushSubscription, Tag, Task, TaskComment,
-    TaskCommentRead, TaskSeen, User,
+    ActivityLog, Attachment, EmailAccount, EmailFolder, EmailMessage, Notification,
+    Project, ProjectUpdate, ProjectUpdateRead, PushSubscription, Tag, Task,
+    TaskComment, TaskCommentRead, TaskSeen, User,
 )
 from .permissions import IsManager, IsManagerOrReadOnly, is_manager
 from .push import send_push
 from .thumbnails import ATTACHMENT_THUMB_SIZE, is_image_name, make_thumbnail, thumb_name
 from .serializers import (
     ActivityLogSerializer, AttachmentSerializer, EmailAccountSerializer,
-    ImageUploadSerializer, NotificationSerializer, ProjectSerializer,
-    ProjectUpdateSerializer, TagSerializer, TaskCommentSerializer,
-    TaskSerializer, UserBriefSerializer, UserSerializer,
+    EmailMessageDetailSerializer, EmailMessageSerializer, ImageUploadSerializer,
+    NotificationSerializer, ProjectSerializer, ProjectUpdateSerializer,
+    TagSerializer, TaskCommentSerializer, TaskSerializer, UserBriefSerializer,
+    UserSerializer,
 )
 
 ALLOWED_TASK_ORDERINGS = {"created_at", "updated_at"}
@@ -1098,65 +1099,82 @@ class EmailTestView(APIView):
 
 
 class ProjectEmailsView(APIView):
-    """إيميلات المشروع: رسائل وارد المستخدم التي يحمل موضوعها وسم المشروع."""
+    """إيميلات المشروع: رسائل وارد المستخدم المخزَّنة التي يحمل موضوعها وسم
+    المشروع — تُقرأ فوراً من قاعدة البيانات (المزامنة تجري من صفحة «البريد»)."""
 
     def get(self, request):
         project_id = request.query_params.get("project")
         project = Project.objects.filter(id=project_id).first()
         if not project:
             return Response({"detail": "المشروع غير موجود."}, status=status.HTTP_404_NOT_FOUND)
-        if not project.email_tag.strip():
+        tag = project.email_tag.strip()
+        if not tag:
             return Response(
                 {"detail": "حدد «وسم المشروع» في تعديل المشروع أولاً — الرسائل التي يحمل موضوعها الوسم تُعرض هنا."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        account = EmailAccount.objects.filter(user=request.user).first()
-        if not account:
-            return Response(
-                {"detail": "اربط بريدك أولاً من صفحة «إعدادات البريد».", "needs_setup": True},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            messages = fetch_project_emails(account, project.email_tag)
-        except EmailFetchError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
-        return Response({"tag": project.email_tag, "messages": messages})
+        messages = (
+            EmailMessage.objects.filter(user=request.user, folder=EmailFolder.RECEIVED)
+            .filter(Q(project_id=project.id) | Q(subject__icontains=tag))
+            .select_related("project")[:50]
+        )
+        data = EmailMessageSerializer(messages, many=True).data
+        return Response({"tag": tag, "messages": data})
 
 
-class MailboxView(APIView):
-    """صندوق بريد المستخدم الموحّد لصفحة «البريد»: الوارد أو الصادر،
-    مع ترشيح اختياري بوسم مشروع وبحث نصي. يتطلب ربط البريد أولاً."""
+class EmailMessageViewSet(viewsets.ReadOnlyModelViewSet):
+    """صندوق بريد المستخدم المُزامَن: قراءة فورية من قاعدة البيانات مع ترشيح
+    بالمجلد والمشروع والبحث، وإجراء «مزامنة» يجلب الجديد من خادم البريد.
+    لكل مستخدم صندوقه المنفصل — لا يرى إلا رسائله."""
 
-    def get(self, request):
-        account = EmailAccount.objects.filter(user=request.user).first()
-        if not account:
-            return Response(
-                {"detail": "اربط بريدك أولاً من صفحة «إعدادات البريد».", "needs_setup": True},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        folder = request.query_params.get("folder", "received")
-        if folder not in ("received", "sent"):
-            folder = "received"
-        query = request.query_params.get("q", "").strip()
-
-        tag = ""
-        if project_id := request.query_params.get("project"):
+    def get_queryset(self):
+        qs = (
+            EmailMessage.objects.filter(user=self.request.user)
+            .select_related("project")
+        )
+        folder = self.request.query_params.get("folder")
+        if folder in (EmailFolder.RECEIVED, EmailFolder.SENT):
+            qs = qs.filter(folder=folder)
+        if project_id := self.request.query_params.get("project"):
             project = Project.objects.filter(id=project_id).first()
-            if not project:
-                return Response(
-                    {"detail": "المشروع غير موجود."}, status=status.HTTP_404_NOT_FOUND
-                )
-            tag = project.email_tag.strip()
-            if not tag:
-                return Response(
-                    {"detail": "حدد «وسم المشروع» في تعديل المشروع أولاً."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            tag = project.email_tag.strip() if project else ""
+            # يطابق المخزَّن مسبقاً أو الوسم في الموضوع (لالتقاط وسوم عُيّنت لاحقاً)
+            match = Q(project_id=project_id)
+            if tag:
+                match |= Q(subject__icontains=tag)
+            qs = qs.filter(match)
+        if query := self.request.query_params.get("q", "").strip():
+            qs = qs.filter(
+                Q(subject__icontains=query) | Q(sender__icontains=query)
+                | Q(recipient__icontains=query) | Q(body__icontains=query)
+            )
+        return qs
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return EmailMessageDetailSerializer
+        return EmailMessageSerializer
+
+    @action(detail=False, methods=["post"])
+    def sync(self, request):
+        """يجلب الجديد من خادم البريد إلى قاعدة البيانات (تزايدياً). يقبل
+        folder اختيارياً (received/sent)؛ الافتراضي كلاهما."""
+        account = EmailAccount.objects.filter(user=request.user).first()
+        if not account:
+            return Response(
+                {"detail": "اربط بريدك أولاً من صفحة «إعدادات البريد».", "needs_setup": True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        folder = request.data.get("folder")
+        folders = (
+            (folder,) if folder in (EmailFolder.RECEIVED, EmailFolder.SENT)
+            else (EmailFolder.RECEIVED, EmailFolder.SENT)
+        )
         try:
-            messages = fetch_mailbox(account, folder=folder, tag=tag, query=query)
+            results = sync_account(account, folders=folders)
         except EmailFetchError as error:
             return Response({"detail": str(error)}, status=status.HTTP_502_BAD_GATEWAY)
-        return Response({"folder": folder, "tag": tag, "messages": messages})
+        return Response({"results": results})
 
 
 class GlobalSearchView(APIView):
@@ -1168,7 +1186,7 @@ class GlobalSearchView(APIView):
         if not query:
             return Response({
                 "projects": [], "tasks": [], "attachments": [],
-                "comments": [], "updates": [],
+                "comments": [], "updates": [], "emails": [],
             })
 
         projects = Project.objects.filter(
@@ -1235,6 +1253,17 @@ class GlobalSearchView(APIView):
             .order_by("-created_at")[:10]
         )
 
+        # البريد: صندوق المستخدم الحالي وحده (خصوصية) — الموضوع أو النص أو المرسِل
+        emails = (
+            EmailMessage.objects.filter(user=request.user)
+            .filter(
+                Q(subject__icontains=query) | Q(body__icontains=query)
+                | Q(sender__icontains=query) | Q(recipient__icontains=query)
+            )
+            .select_related("project")
+            .order_by("-date", "-uid")[:10]
+        )
+
         context = {"request": request}
         return Response({
             "projects": ProjectSerializer(projects, many=True, context=context).data,
@@ -1242,4 +1271,5 @@ class GlobalSearchView(APIView):
             "attachments": AttachmentSerializer(attachments, many=True, context=context).data,
             "comments": comments,
             "updates": ProjectUpdateSerializer(updates, many=True, context=context).data,
+            "emails": EmailMessageSerializer(emails, many=True).data,
         })

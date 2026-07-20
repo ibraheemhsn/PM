@@ -10,8 +10,8 @@ from pathlib import Path
 from rest_framework import serializers
 
 from .models import (
-    ActivityLog, Attachment, EmailAccount, Notification, Project, ProjectUpdate,
-    Tag, Task, TaskComment, User,
+    ActivityLog, Attachment, EmailAccount, EmailMessage, Notification, Project,
+    ProjectUpdate, Tag, Task, TaskComment, User,
 )
 from .thumbnails import AVATAR_THUMB_SIZE, make_thumbnail, thumb_name
 
@@ -352,6 +352,38 @@ class EmailAccountSerializer(serializers.ModelSerializer):
         if not validated_data.get("password"):
             validated_data.pop("password", None)  # أبقِ المحفوظة
         return super().update(instance, validated_data)
+
+
+class EmailMessageSerializer(serializers.ModelSerializer):
+    """رسالة بريد مُزامَنة (عرض القائمة) — بلا النص الكامل، مع مقتطف ومشروع."""
+
+    to = serializers.CharField(source="recipient", read_only=True)
+    project_title = serializers.SerializerMethodField()
+    project_color = serializers.SerializerMethodField()
+    preview = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmailMessage
+        fields = [
+            "id", "subject", "sender", "to", "date", "folder",
+            "project", "project_title", "project_color", "preview",
+        ]
+
+    def get_project_title(self, obj):
+        return obj.project.title if obj.project_id else None
+
+    def get_project_color(self, obj):
+        return obj.project.color if obj.project_id else None
+
+    def get_preview(self, obj):
+        return " ".join(obj.body.split())[:160]
+
+
+class EmailMessageDetailSerializer(EmailMessageSerializer):
+    """تفاصيل الرسالة — يضيف النص الكامل عند فتحها في نافذة القراءة."""
+
+    class Meta(EmailMessageSerializer.Meta):
+        fields = EmailMessageSerializer.Meta.fields + ["body", "message_id"]
 
 
 class NotificationSerializer(serializers.ModelSerializer):

@@ -9,16 +9,26 @@ import email
 import imaplib
 import re
 import smtplib
+from email import policy
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
 
+from django.utils import timezone
+
 from .google_oauth import GoogleOAuthError, get_access_token
+from .models import EmailFolder, EmailMessage, EmailSyncState, Project
 
 # عدد الرسائل الأحدث التي تُمسح ترويساتها بحثاً عن الوسم
 SCAN_DEPTH = 300
 # الحد الأقصى للنتائج المعادة
 MAX_RESULTS = 50
 TIMEOUT = 20
+# حد المزامنة الأولى (لكل مجلد) — يمنع جلب آلاف الرسائل القديمة دفعة واحدة
+INITIAL_SYNC_LIMIT = 300
+# أقصى طول لنص الرسالة المخزَّن (كافٍ للبحث والعرض دون تضخيم القاعدة)
+BODY_MAX = 20000
+# حجم دفعة الجلب من الخادم
+FETCH_BATCH = 40
 
 
 class EmailFetchError(Exception):
@@ -253,3 +263,170 @@ def test_connection(account) -> dict:
         "imap_ok": imap_ok, "imap_error": imap_error,
         "smtp_ok": smtp_ok, "smtp_error": smtp_error,
     }
+
+
+# ===== المزامنة إلى قاعدة البيانات (صندوق منفصل لكل مستخدم) =====
+
+def _strip_html(html: str) -> str:
+    """تحويل HTML إلى نص عادي — لتخزين نص الرسائل ذات المحتوى HTML."""
+    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = re.sub(r"&nbsp;", " ", text)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    return re.sub(r"[ \t\r\f]*\n[ \t\r\f]*", "\n", re.sub(r"[ \t]{2,}", " ", text)).strip()
+
+
+def _parse_date(raw):
+    """يحوّل ترويسة Date إلى datetime واعٍ بالمنطقة الزمنية (أو None)."""
+    try:
+        dt = parsedate_to_datetime(str(raw))
+    except Exception:
+        return None
+    if dt is None:
+        return None
+    if timezone.is_naive(dt):
+        try:
+            dt = timezone.make_aware(dt, timezone.get_default_timezone())
+        except Exception:
+            return None
+    return dt
+
+
+def _extract(raw: bytes) -> dict:
+    """يستخرج من رسالة كاملة: الموضوع والمرسِل والمستلِم والتاريخ ونصاً عادياً."""
+    message = email.message_from_bytes(raw, policy=policy.default)
+    body = ""
+    try:
+        part = message.get_body(preferencelist=("plain", "html"))
+        if part is not None:
+            content = part.get_content()
+            if part.get_content_type() == "text/html":
+                content = _strip_html(content)
+            body = content
+    except Exception:
+        body = ""
+    return {
+        "message_id": str(message.get("Message-ID", "") or "")[:500],
+        "subject": str(message.get("Subject", "") or ""),
+        "sender": str(message.get("From", "") or ""),
+        "recipient": str(message.get("To", "") or ""),
+        "date": _parse_date(message.get("Date", "")),
+        "body": (body or "").strip()[:BODY_MAX],
+    }
+
+
+def _batches(items, size):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def _match_project(subject: str, projects: list[tuple]) -> "Project | None":
+    """أول مشروع يحمل موضوع الرسالة وسمه (مطابقة غير حساسة لحالة الأحرف)."""
+    lower = subject.lower()
+    for project, tag_lower in projects:
+        if tag_lower and tag_lower in lower:
+            return project
+    return None
+
+
+def _read_uidvalidity(box) -> int:
+    try:
+        _typ, data = box.response("UIDVALIDITY")
+        if data and data[0]:
+            return int(data[0])
+    except Exception:
+        pass
+    return 0
+
+
+def _sync_folder(box, user, folder: str, projects: list[tuple]) -> int:
+    """مزامنة تزايدية لمجلد واحد على اتصال مفتوح — يعيد عدد الرسائل الجديدة."""
+    if folder == EmailFolder.SENT:
+        if not _select_sent(box):
+            raise EmailFetchError("تعذر العثور على مجلد الصادر في خادم البريد.")
+    else:
+        box.select("INBOX", readonly=True)
+
+    uidvalidity = _read_uidvalidity(box)
+    state, _ = EmailSyncState.objects.get_or_create(user=user, folder=folder)
+    if state.uidvalidity != uidvalidity:
+        # صندوق أعيد بناؤه على الخادم (تغيّر UIDVALIDITY) — أعد المزامنة من الصفر
+        EmailMessage.objects.filter(user=user, folder=folder).delete()
+        state.uidvalidity = uidvalidity
+        state.last_uid = 0
+
+    if state.last_uid > 0:
+        typ, data = box.uid("search", None, f"UID {state.last_uid + 1}:*")
+        raw = data[0].split() if (typ == "OK" and data and data[0]) else []
+        new_uids = [int(x) for x in raw if int(x) > state.last_uid]
+    else:
+        typ, data = box.uid("search", None, "ALL")
+        raw = data[0].split() if (typ == "OK" and data and data[0]) else []
+        new_uids = [int(x) for x in raw][-INITIAL_SYNC_LIMIT:]
+
+    if not new_uids:
+        state.last_synced_at = timezone.now()
+        state.save()
+        return 0
+
+    stored = 0
+    max_uid = state.last_uid
+    for chunk in _batches(new_uids, FETCH_BATCH):
+        id_range = ",".join(str(u) for u in chunk)
+        typ, parts = box.uid("fetch", id_range, "(BODY.PEEK[])")
+        if typ != "OK":
+            continue
+        objs = []
+        for part in parts:
+            if not isinstance(part, tuple):
+                continue
+            descr = part[0]
+            descr = descr.decode(errors="ignore") if isinstance(descr, (bytes, bytearray)) else str(descr)
+            match = re.search(r"UID (\d+)", descr)
+            if not match:
+                continue
+            uid = int(match.group(1))
+            fields = _extract(part[1])
+            objs.append(EmailMessage(
+                user=user, folder=folder, uidvalidity=uidvalidity, uid=uid,
+                project=_match_project(fields["subject"], projects), **{
+                    k: fields[k] for k in ("message_id", "subject", "sender", "recipient", "body", "date")
+                },
+            ))
+            max_uid = max(max_uid, uid)
+        if objs:
+            EmailMessage.objects.bulk_create(objs, ignore_conflicts=True)
+            stored += len(objs)
+
+    state.last_uid = max_uid
+    state.uidvalidity = uidvalidity
+    state.last_synced_at = timezone.now()
+    state.save()
+    return stored
+
+
+def sync_account(account, folders=(EmailFolder.RECEIVED, EmailFolder.SENT)) -> dict:
+    """مزامنة صندوق المستخدم إلى قاعدة البيانات (وارد/صادر) على اتصال واحد.
+    يعيد {folder: عدد الجديد} أو {folder: {"error": "..."}} لكل مجلد."""
+    user = account.user
+    projects = [
+        (p, p.email_tag.strip().lower())
+        for p in Project.objects.filter(deleted_at__isnull=True).exclude(email_tag="")
+    ]
+    box = _connect_imap(account)
+    results: dict = {}
+    try:
+        for folder in folders:
+            try:
+                results[folder] = _sync_folder(box, user, folder, projects)
+            except EmailFetchError as error:
+                # فشل مجلد (كعدم وجود «الصادر») لا يُسقط الآخر
+                results[folder] = {"error": str(error)}
+    finally:
+        try:
+            box.logout()
+        except Exception:
+            pass
+    return results

@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, RefreshCw, Settings } from 'lucide-react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { cn, formatDate } from '../../lib/utils'
@@ -16,16 +17,32 @@ function errorDetail(error: unknown): string {
  *  موضوعها «وسم المشروع». يتطلب ربط البريد من صفحة إعدادات البريد. */
 export function EmailsSection({ project }: { project: Project }) {
   const hasTag = !!project.email_tag.trim()
+  const queryClient = useQueryClient()
 
-  const { data, isFetching, isError, error, refetch } = useQuery({
+  // القراءة فورية من قاعدة البيانات (الرسائل المخزَّنة)
+  const { data, isFetching, isError, error } = useQuery({
     queryKey: ['emails', project.id],
     queryFn: () => api.email.forProject(project.id),
     enabled: hasTag,
     staleTime: 60_000,
-    retry: false, // فشل الاتصال بخادم البريد لا يستفيد من الإعادة التلقائية
+    retry: false,
   })
 
+  // المزامنة من خادم البريد (وارد) — عند الفتح مرة، وعند «تحديث»
+  const sync = useMutation({
+    mutationFn: () => api.email.sync('received'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emails', project.id] })
+      queryClient.invalidateQueries({ queryKey: ['mailbox'] })
+    },
+  })
+  useEffect(() => {
+    if (hasTag) sync.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasTag, project.id])
+
   const messages = data?.messages ?? []
+  const busy = isFetching || sync.isPending
 
   return (
     <section>
@@ -44,12 +61,12 @@ export function EmailsSection({ project }: { project: Project }) {
         </h2>
         {hasTag && (
           <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            title="تحديث القائمة من خادم البريد"
+            onClick={() => sync.mutate()}
+            disabled={busy}
+            title="مزامنة الجديد من خادم البريد"
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
           >
-            <RefreshCw size={14} className={cn(isFetching && 'animate-spin')} />
+            <RefreshCw size={14} className={cn(busy && 'animate-spin')} />
             تحديث
           </button>
         )}
@@ -62,15 +79,15 @@ export function EmailsSection({ project }: { project: Project }) {
         </p>
       )}
 
-      {hasTag && isFetching && !data && (
+      {hasTag && busy && !data && (
         <p className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
           جارٍ جلب الإيميلات من خادم البريد…
         </p>
       )}
 
-      {hasTag && isError && (
+      {hasTag && (isError || sync.isError) && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span>{errorDetail(error)}</span>
+          <span>{errorDetail(sync.error ?? error)}</span>
           <Link
             to="/email-settings"
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-amber-300 hover:bg-amber-100"

@@ -452,3 +452,80 @@ class Attachment(models.Model):
 
     def __str__(self):
         return self.file_name
+
+
+class EmailFolder(models.TextChoices):
+    RECEIVED = "received", "الوارد"
+    SENT = "sent", "الصادر"
+
+
+class EmailMessage(models.Model):
+    """رسالة بريد مُزامَنة من صندوق المستخدم إلى قاعدة البيانات — تُقرأ فوراً
+    بلا اتصال بخادم البريد، وتُصنَّف حسب المشروع (وسمه في الموضوع)، ويشملها
+    البحث الشامل. لكل مستخدم صندوقه المنفصل (خصوصية)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="emails", verbose_name="المستخدم",
+    )
+    folder = models.CharField("المجلد", max_length=10, choices=EmailFolder.choices)
+    # هوية الرسالة على خادم IMAP: UID فريد ضمن (المجلد, uidvalidity)
+    uidvalidity = models.BigIntegerField("UIDVALIDITY", default=0)
+    uid = models.BigIntegerField("UID")
+    message_id = models.CharField("Message-ID", max_length=500, blank=True, default="")
+    subject = models.TextField("الموضوع", blank=True, default="")
+    sender = models.TextField("المرسِل", blank=True, default="")
+    recipient = models.TextField("المستلِم", blank=True, default="")
+    # النص العادي للرسالة (مقتطع بحد أقصى) — أساس البحث في المحتوى
+    body = models.TextField("النص", blank=True, default="")
+    date = models.DateTimeField("تاريخ الإرسال", null=True, blank=True, db_index=True)
+    # المشروع المطابق (موضوعها يحمل وسمه) — يُحسب مرة عند المزامنة
+    project = models.ForeignKey(
+        Project, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="emails", verbose_name="المشروع",
+    )
+    synced_at = models.DateTimeField("وقت المزامنة", auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "-uid"]  # الأحدث أولاً
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "folder", "uidvalidity", "uid"],
+                name="unique_email_per_user_folder_uid",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "folder", "-date"]),
+            models.Index(fields=["user", "project"]),
+        ]
+        verbose_name = "رسالة بريد"
+        verbose_name_plural = "رسائل البريد"
+
+    def __str__(self):
+        return f"{self.user_id}/{self.folder}: {self.subject[:40]}"
+
+
+class EmailSyncState(models.Model):
+    """حالة المزامنة التزايدية لكل (مستخدم, مجلد): آخر UID جُلب وقيمة
+    UIDVALIDITY — فنجلب الجديد فقط في كل مرة بدل إعادة مسح الصندوق كاملاً."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="email_sync_states", verbose_name="المستخدم",
+    )
+    folder = models.CharField("المجلد", max_length=10, choices=EmailFolder.choices)
+    uidvalidity = models.BigIntegerField("UIDVALIDITY", default=0)
+    last_uid = models.BigIntegerField("آخر UID مُزامَن", default=0)
+    last_synced_at = models.DateTimeField("آخر مزامنة", null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "folder"], name="unique_sync_state_per_user_folder",
+            )
+        ]
+        verbose_name = "حالة مزامنة بريد"
+        verbose_name_plural = "حالات مزامنة البريد"
+
+    def __str__(self):
+        return f"{self.user_id}/{self.folder} @ uid {self.last_uid}"
