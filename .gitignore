@@ -13,6 +13,7 @@ client/dist/
 # أسرار البيئة — لا تُرفع أبداً للمستودع
 .env
 server/.env
+dev-secrets.bat
 
 # IDE / OS
 .vscode/

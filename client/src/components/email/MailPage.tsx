@@ -294,43 +294,45 @@ function MailMessageModal({ id, onClose }: { id: number; onClose: () => void }) 
         </h2>
       </div>
 
-      {/* التفاصيل + النص (متمرر) */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-        {isLoading && <p className="py-10 text-center text-sm text-slate-400">جارٍ فتح الرسالة…</p>}
-        {isError && <p className="py-10 text-center text-sm text-red-500">تعذر فتح الرسالة.</p>}
-        {data && (
-          <div>
-            <div className="mb-4 space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs">
-              <MetaField label="From" value={data.sender} />
-              <MetaField label="To" value={data.to} />
-              <MetaField label="Subject" value={data.subject} />
-              {data.date && <MetaField label="Date" value={formatDate(data.date)} />}
-            </div>
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700" dir="auto">
-              {data.body?.trim() || '(no content)'}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* شريط الرد */}
-      {data && (
-        <div className="shrink-0 border-t border-slate-200 bg-slate-50">
-          <div>
-            {mode ? (
-              <ReplyComposer
-                message={data}
-                mode={mode}
-                onCancel={() => setMode(null)}
-                onSent={() => setMode(null)}
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-6">
-                <ComposeButton icon={<Reply size={15} />} onClick={() => setMode('reply')}>Reply</ComposeButton>
-                <ComposeButton icon={<ReplyAll size={15} />} onClick={() => setMode('replyAll')}>Reply All</ComposeButton>
-                <ComposeButton icon={<Forward size={15} />} onClick={() => setMode('forward')}>Forward</ComposeButton>
+      {/* التفاصيل + النص (متمرر) — يُخفى أثناء كتابة الرد ليأخذ المحرر
+          كامل ارتفاع اللوح (النص الأصلي مقتبس داخل المحرر أصلاً) */}
+      {!mode && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          {isLoading && <p className="py-10 text-center text-sm text-slate-400">جارٍ فتح الرسالة…</p>}
+          {isError && <p className="py-10 text-center text-sm text-red-500">تعذر فتح الرسالة.</p>}
+          {data && (
+            <div>
+              <div className="mb-4 space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs">
+                <MetaField label="From" value={data.sender} />
+                <MetaField label="To" value={data.to} />
+                <MetaField label="Subject" value={data.subject} />
+                {data.date && <MetaField label="Date" value={formatDate(data.date)} />}
               </div>
-            )}
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700" dir="auto">
+                {data.body?.trim() || '(no content)'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* محرر الرد بكامل الارتفاع — أو شريط أزرار الرد أسفل الرسالة */}
+      {data && mode && (
+        <div className="min-h-0 flex-1 border-t border-slate-200 bg-slate-50">
+          <ReplyComposer
+            message={data}
+            mode={mode}
+            onCancel={() => setMode(null)}
+            onSent={() => setMode(null)}
+          />
+        </div>
+      )}
+      {data && !mode && (
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50">
+          <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-6">
+            <ComposeButton icon={<Reply size={15} />} onClick={() => setMode('reply')}>Reply</ComposeButton>
+            <ComposeButton icon={<ReplyAll size={15} />} onClick={() => setMode('replyAll')}>Reply All</ComposeButton>
+            <ComposeButton icon={<Forward size={15} />} onClick={() => setMode('forward')}>Forward</ComposeButton>
           </div>
         </div>
       )}
@@ -415,8 +417,9 @@ function ReplyComposer({
   })
 
   return (
-    <div className="space-y-2 px-4 py-3 sm:px-6">
-      <div className="flex items-center gap-2">
+    // عمود بكامل ارتفاع المنطقة: الحقلان والأزرار ثابتة، وحقل النص يتمدد بينها
+    <div className="flex h-full flex-col gap-2 px-4 py-3 sm:px-6">
+      <div className="flex shrink-0 items-center gap-2">
         <span className="w-16 shrink-0 text-xs font-semibold text-slate-400">To</span>
         <input
           value={to}
@@ -425,7 +428,7 @@ function ReplyComposer({
           className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400"
         />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <span className="w-16 shrink-0 text-xs font-semibold text-slate-400">Subject</span>
         <input
           value={subject}
@@ -435,13 +438,13 @@ function ReplyComposer({
         />
       </div>
       <textarea
+        autoFocus
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        rows={6}
         dir="auto"
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+        className="min-h-0 w-full flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
       />
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <button
           onClick={() => send.mutate()}
           disabled={send.isPending || !to.trim()}

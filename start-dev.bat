@@ -6,6 +6,10 @@ rem   يفتح نافذتين (Django + React) ثم المتصفح
 rem   للإيقاف: أغلق النافذتين
 rem ============================================
 
+rem أسرار التطوير (بيانات Google OAuth وغيرها) — تُقرأ من ملف خارج git:
+rem انسخ dev-secrets.example.bat إلى dev-secrets.bat وضع القيم الحقيقية فيه
+if exist "%~dp0dev-secrets.bat" call "%~dp0dev-secrets.bat"
+
 echo [1/3] تشغيل خادم Django (المنفذ 8000)...
 start "PM - Django Backend (8000)" cmd /k "cd /d %~dp0server && .venv\Scripts\activate && python manage.py runserver"
 
